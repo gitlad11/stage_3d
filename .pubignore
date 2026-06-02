@@ -1,0 +1,14 @@
+.dart_tool/
+.idea/
+build/
+docs/
+*.iml
+
+# Jolt source required by the Android build lives in Build/ and Jolt/.
+android/app/src/main/cpp/third_party/JoltPhysics/Assets/
+android/app/src/main/cpp/third_party/JoltPhysics/Docs/
+android/app/src/main/cpp/third_party/JoltPhysics/HelloWorld/
+android/app/src/main/cpp/third_party/JoltPhysics/PerformanceTest/
+android/app/src/main/cpp/third_party/JoltPhysics/Samples/
+android/app/src/main/cpp/third_party/JoltPhysics/TestFramework/
+android/app/src/main/cpp/third_party/JoltPhysics/UnitTests/
