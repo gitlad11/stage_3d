@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 import 'package:stage_3d/jolt_physics.dart';
 import 'package:stage_3d/jolt_rendering.dart';
+import 'package:stage_3d/physics/collider_shape.dart' as physics;
 
 void main() {
   test('ModelAsset serializes GLB renderer settings', () {
@@ -67,5 +69,181 @@ void main() {
 
     models.stopAnimation(instance);
     expect(instance.animation, isNull);
+  });
+
+  test('TexturedMeshPrototype creates a UV mapped plane', () {
+    final mesh = TexturedMeshPrototype.plane(
+      width: 4,
+      depth: 2,
+      texture: const MeshTexturePrototype(
+        primaryColor: Color(0xff14b8a6),
+        secondaryColor: Color(0xfff8fafc),
+        repeatU: 8,
+        repeatV: 4,
+      ),
+    );
+
+    expect(mesh.vertices, hasLength(45));
+    expect(mesh.indices, hasLength(192));
+    expect(mesh.indices.take(6), [0, 1, 10, 0, 10, 9]);
+    expect(mesh.vertices.first.position.x, -2);
+    expect(mesh.vertices.first.normal.y, 1);
+    expect(mesh.vertices.first.uv.dx, 0);
+    expect(mesh.toMessage()['texture'], {
+      'kind': 'checker',
+      'primaryColor': const Color(0xff14b8a6).toARGB32(),
+      'secondaryColor': const Color(0xfff8fafc).toARGB32(),
+      'repeatU': 8.0,
+      'repeatV': 4.0,
+    });
+  });
+
+  test('MeshMaterialPrototype serializes Filament mat source paths', () {
+    final material = MeshMaterialPrototype.filamentSource(
+      matAssetPath: 'materials/terrain.mat',
+      baseColor: const Color(0xffa7f3d0),
+      roughnessFactor: 0.7,
+      doubleSided: false,
+    );
+
+    expect(material.toMessage(), {
+      'kind': 'filamentSource',
+      'baseColor': const Color(0xffa7f3d0).toARGB32(),
+      'metallicFactor': 0,
+      'roughnessFactor': 0.7,
+      'doubleSided': false,
+      'shader': {
+        'sourceAssetPath': 'materials/terrain.mat',
+        'filamatAssetPath': 'materials/terrain.filamat',
+        'uniforms': [],
+      },
+      'matAssetPath': 'materials/terrain.mat',
+      'filamatAssetPath': 'materials/terrain.filamat',
+    });
+  });
+
+  test('MeshMaterialPrototype serializes custom shader source paths', () {
+    final material = MeshMaterialPrototype.shaderSource(
+      shaderAssetPath: 'materials/grass_wind.shader',
+      uniforms: [
+        MaterialShaderUniform.float('windStrength', 0.25),
+        MaterialShaderUniform.float('windScale', 3),
+        MaterialShaderUniform.bool('receiveWind', true),
+        MaterialShaderUniform.color('tint', const Color(0xff86efac)),
+      ],
+    );
+
+    expect(material.toMessage(), {
+      'kind': 'shader',
+      'baseColor': Colors.white.toARGB32(),
+      'metallicFactor': 0,
+      'roughnessFactor': 0.85,
+      'doubleSided': true,
+      'shader': {
+        'sourceAssetPath': 'materials/grass_wind.shader',
+        'filamatAssetPath': 'materials/grass_wind.filamat',
+        'uniforms': [
+          {'name': 'windStrength', 'type': 'float', 'value': 0.25},
+          {'name': 'windScale', 'type': 'float', 'value': 3.0},
+          {'name': 'receiveWind', 'type': 'bool', 'value': true},
+          {
+            'name': 'tint',
+            'type': 'color',
+            'value': const Color(0xff86efac).toARGB32(),
+          },
+        ],
+      },
+      'filamatAssetPath': 'materials/grass_wind.filamat',
+    });
+  });
+
+  test('MeshMaterialPrototype can use an already compiled filamat asset', () {
+    final material = MeshMaterialPrototype.filamat(
+      assetPath: 'materials/water.filamat',
+      uniforms: [MaterialShaderUniform.float('waveStrength', 0.4)],
+    );
+
+    expect(material.toMessage(), {
+      'kind': 'shader',
+      'baseColor': Colors.white.toARGB32(),
+      'metallicFactor': 0,
+      'roughnessFactor': 0.85,
+      'doubleSided': true,
+      'shader': {
+        'filamatAssetPath': 'materials/water.filamat',
+        'uniforms': [
+          {'name': 'waveStrength', 'type': 'float', 'value': 0.4},
+        ],
+      },
+      'filamatAssetPath': 'materials/water.filamat',
+    });
+  });
+
+  test('MeshTexturePrototype serializes atlas asset region', () {
+    const texture = MeshTexturePrototype.asset(
+      assetPath: 'textures/grass_pbr_atlas.png',
+      sourceRegion: MeshTextureRegion(
+        left: 7 / 1536,
+        top: 50 / 1024,
+        right: 372 / 1536,
+        bottom: 424 / 1024,
+      ),
+      repeatU: 2,
+      repeatV: 2,
+    );
+
+    expect(texture.toMessage(), {
+      'kind': 'asset',
+      'primaryColor': const Color(0xff14b8a6).toARGB32(),
+      'secondaryColor': const Color(0xfff8fafc).toARGB32(),
+      'repeatU': 2,
+      'repeatV': 2,
+      'assetPath': 'textures/grass_pbr_atlas.png',
+      'sourceRegion': {
+        'left': 7 / 1536,
+        'top': 50 / 1024,
+        'right': 372 / 1536,
+        'bottom': 424 / 1024,
+      },
+    });
+  });
+
+  test('TexturedMeshPrototype terrain builds heightmapped normals', () {
+    final heightMap = MeshHeightMap.samples(
+      columns: 3,
+      rows: 3,
+      values: [0, 0.5, 0, 0.5, 1, 0.5, 0, 0.5, 0],
+      heightScale: 2,
+    );
+    final mesh = TexturedMeshPrototype.terrain(
+      width: 2,
+      depth: 2,
+      heightMap: heightMap,
+    );
+
+    expect(mesh.vertices, hasLength(9));
+    expect(mesh.indices, hasLength(24));
+    expect(mesh.vertices[4].position.y, 2);
+    expect(mesh.vertices[4].normal.y, greaterThan(0));
+    expect(mesh.vertices[1].normal.y, greaterThan(0));
+    expect(mesh.vertices[1].normal.y, lessThan(1));
+  });
+
+  test('TexturedMeshPrototype can carry an optional collider prototype', () {
+    final mesh = TexturedMeshPrototype.plane(
+      width: 8,
+      depth: 8,
+      collider: const MeshColliderPrototype.staticBox(
+        physics.BoxShape(halfWidth: 4, halfHeight: 0.1, halfDepth: 4),
+      ),
+    );
+
+    expect(mesh.collider.enabled, isTrue);
+    expect(mesh.collider.kind, MeshColliderKind.staticBox);
+    expect(mesh.toMessage()['collider'], {
+      'enabled': true,
+      'kind': 'staticBox',
+      'staticBox': {'halfWidth': 4.0, 'halfHeight': 0.1, 'halfDepth': 4.0},
+    });
   });
 }

@@ -10,6 +10,7 @@ void main() {
     expect(find.text('Pause'), findsOneWidget);
     expect(find.text('Reset model'), findsOneWidget);
     expect(find.text('Reset view'), findsOneWidget);
+    expect(find.text('Animations'), findsOneWidget);
     expect(find.text('Tap the fox collider'), findsOneWidget);
     expect(find.text('+X'), findsNothing);
     expect(find.text('+Y'), findsNothing);

@@ -1,3 +1,11 @@
+# rtmpstreamer
+
+Modern Flutter RTMP streaming plugin for Android and iOS.
+
+Support & Contact: [efimovi420@gmail.com](mailto:efimovi420@gmail.com)
+
+If this package helps your project, please consider starring the repository.
+
 # Stage 3D
 
 **Stage 3D is a Flutter runtime for prototyping interactive 3D scenes with
@@ -22,6 +30,8 @@ Stage 3D currently combines
 | 3D assets | Reusable `.glb` assets and independent visual instances |
 | Animations | Inspect clips and control per-instance playback |
 | Lighting | Directional and movable point lights |
+| Procedural meshes | Terrain, atlas textures, normals, and optional collider metadata |
+| Shader materials | `.mat` / `.shader` metadata with compiled `.filamat` assets |
 | Debug tools | Compact collider inspector in Flutter debug builds |
 
 ## Suitable For
@@ -87,12 +97,15 @@ world.dispose();
 ## Documentation
 
 - [Physics API guide](doc/physics_api.md)
+- [Rendering lights](doc/rendering_lights.md)
+- [Rendering meshes and shaders](doc/rendering_meshes.md)
 - Public Dart entrypoint: [`lib/jolt_physics.dart`](lib/jolt_physics.dart)
 - Rendering entrypoint: [`lib/jolt_rendering.dart`](lib/jolt_rendering.dart)
 - Collider prototypes: [`lib/physics/collider_shape.dart`](lib/physics/collider_shape.dart)
 - Rigid body prototypes: [`lib/physics/rigid_body.dart`](lib/physics/rigid_body.dart)
 - Light prototypes: [`lib/rendering/light.dart`](lib/rendering/light.dart)
 - Model asset prototypes: [`lib/rendering/model_asset.dart`](lib/rendering/model_asset.dart)
+- Mesh prototypes: [`lib/rendering/textured_mesh_prototype.dart`](lib/rendering/textured_mesh_prototype.dart)
 
 ## Architecture
 
@@ -116,6 +129,13 @@ Jolt body transform -> Flutter scene -> MethodChannel -> Filament -> Fox.glb
 
 Jolt calculates physics. Filament renders the visual model. The two systems are
 kept separate so a visual model can use the collider that best fits gameplay.
+
+Procedural mesh prototypes currently serialize from Dart into the Android
+Filament bridge as temporary GLB assets. They support generated planes,
+heightmapped terrain, atlas texture crops, recalculated normals, basic PBR
+settings, optional collider metadata, and shader material metadata. Compiled
+`.filamat` shader assets can be described from Dart; applying custom
+`.filamat` materials inside the Android renderer is the next integration step.
 
 ## Run The Demo
 

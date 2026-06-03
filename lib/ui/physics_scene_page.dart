@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:stage_3d/physics/collider_shape.dart' as physics;
 
 import '../jolt_physics.dart';
 import '../rendering/filament_viewport.dart';
@@ -9,6 +10,7 @@ import '../rendering/model_asset.dart';
 import '../rendering/physics_debug_overlay.dart';
 import '../rendering/render_light_controller.dart';
 import '../rendering/render_model_controller.dart';
+import '../rendering/textured_mesh_prototype.dart';
 import '../scene/orbit_camera.dart';
 import '../scene/physics_scene.dart';
 
@@ -29,6 +31,10 @@ class _PhysicsScenePageState extends State<PhysicsScenePage>
   late final RenderLight _modelLight;
   late final RenderModelController _modelController;
   late final RenderModelInstance _foxModel;
+  late final TexturedMeshPrototype _meshPrototype;
+  var _animations = const <ModelAnimation>[];
+  var _selectedAnimationIndex = 0;
+  var _animationStatus = 'Loading animations';
   Duration? _lastTick;
 
   @override
@@ -54,6 +60,37 @@ class _PhysicsScenePageState extends State<PhysicsScenePage>
       ),
     );
     _modelController = RenderModelController();
+    const grassAtlasTexture = MeshTexturePrototype.asset(
+      assetPath: 'textures/grass_pbr_atlas.png',
+      sourceRegion: MeshTextureRegion(
+        left: 7 / 1536,
+        top: 50 / 1024,
+        right: 372 / 1536,
+        bottom: 424 / 1024,
+      ),
+      repeatU: 2,
+      repeatV: 2,
+    );
+    _meshPrototype = TexturedMeshPrototype.terrain(
+      width: 4,
+      depth: 2.5,
+      heightMap: MeshHeightMap.wave(columns: 18, rows: 14, heightScale: 0.35),
+      texture: grassAtlasTexture,
+      material: MeshMaterialPrototype.shaderSource(
+        shaderAssetPath: 'materials/grass_wind.shader',
+        texture: grassAtlasTexture,
+        roughnessFactor: 0.92,
+        doubleSided: true,
+        uniforms: [
+          MaterialShaderUniform.float('windStrength', 0.18),
+          MaterialShaderUniform.float('windScale', 3),
+          MaterialShaderUniform.color('tint', Color(0xffd9f99d)),
+        ],
+      ),
+      collider: const MeshColliderPrototype.staticBox(
+        physics.BoxShape(halfWidth: 8, halfHeight: 0.25, halfDepth: 8),
+      ),
+    );
     final foxAsset = _modelController.loadAsset(
       const ModelAsset(assetPath: 'models/Fox.glb', animationIndex: 0),
     );
@@ -61,7 +98,33 @@ class _PhysicsScenePageState extends State<PhysicsScenePage>
       foxAsset,
       transform: _scene.model.transform,
     );
+    SchedulerBinding.instance.addPostFrameCallback((_) => _loadAnimations());
     _ticker = createTicker(_onTick)..start();
+  }
+
+  Future<void> _loadAnimations() async {
+    final animations = await _modelController.getAnimations(_foxModel);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _animations = animations;
+      _animationStatus = animations.isEmpty
+          ? 'No native animations'
+          : '${animations.length} animation clips';
+      if (animations.isNotEmpty) {
+        _selectedAnimationIndex = animations.first.index;
+      }
+    });
+  }
+
+  void _playAnimation(ModelAnimation animation) {
+    _modelController.playAnimation(_foxModel, animationIndex: animation.index);
+    setState(() {
+      _selectedAnimationIndex = animation.index;
+      _animationStatus =
+          '${animation.name}  ${animation.durationSeconds.toStringAsFixed(2)}s';
+    });
   }
 
   void _refresh() {
@@ -112,6 +175,7 @@ class _PhysicsScenePageState extends State<PhysicsScenePage>
                 controller: _viewportController,
                 lightController: _lightController,
                 modelController: _modelController,
+                meshPrototype: _meshPrototype,
               ),
             ),
           ),
@@ -167,6 +231,13 @@ class _PhysicsScenePageState extends State<PhysicsScenePage>
                     icon: const Icon(Icons.center_focus_strong),
                     label: const Text('Reset view'),
                   ),
+                  const SizedBox(height: 8),
+                  _AnimationPanel(
+                    animations: _animations,
+                    selectedIndex: _selectedAnimationIndex,
+                    status: _animationStatus,
+                    onSelect: _playAnimation,
+                  ),
                   const Spacer(),
                   Row(
                     children: [
@@ -190,6 +261,75 @@ class _PhysicsScenePageState extends State<PhysicsScenePage>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AnimationPanel extends StatelessWidget {
+  const _AnimationPanel({
+    required this.animations,
+    required this.selectedIndex,
+    required this.status,
+    required this.onSelect,
+  });
+
+  final List<ModelAnimation> animations;
+  final int selectedIndex;
+  final String status;
+  final ValueChanged<ModelAnimation> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xaa071527),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0x8838bdf8)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Animations',
+                style: TextStyle(
+                  color: Color(0xffbae6fd),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                status,
+                style: const TextStyle(color: Color(0xff94a3b8), fontSize: 12),
+              ),
+              if (animations.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final animation in animations)
+                      ChoiceChip(
+                        selected: animation.index == selectedIndex,
+                        onSelected: (_) => onSelect(animation),
+                        label: Text(
+                          animation.name.isEmpty
+                              ? 'Clip ${animation.index}'
+                              : animation.name,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -7,6 +7,7 @@ import '../scene/orbit_camera.dart';
 import 'physics_scene_painter.dart';
 import 'render_light_controller.dart';
 import 'render_model_controller.dart';
+import 'textured_mesh_prototype.dart';
 
 /// Controls commands sent to the native Filament demo viewport.
 ///
@@ -38,6 +39,7 @@ class FilamentViewport extends StatefulWidget {
     required this.controller,
     required this.lightController,
     required this.modelController,
+    required this.meshPrototype,
   });
 
   final PhysicsTransform cube;
@@ -45,6 +47,7 @@ class FilamentViewport extends StatefulWidget {
   final FilamentViewportController controller;
   final RenderLightController lightController;
   final RenderModelController modelController;
+  final TexturedMeshPrototype meshPrototype;
 
   @override
   State<FilamentViewport> createState() => _FilamentViewportState();
@@ -61,6 +64,10 @@ class _FilamentViewportState extends State<FilamentViewport> {
     widget.controller.attach(_channel!);
     widget.lightController.attach(_channel!);
     widget.modelController.attach(_channel!);
+    _channel!.invokeMethod<void>('createTexturedMesh', {
+      'meshId': 1,
+      ...widget.meshPrototype.toMessage(),
+    });
   }
 
   @override
@@ -87,6 +94,7 @@ class _FilamentViewportState extends State<FilamentViewport> {
         painter: PhysicsScenePainter(
           cube: widget.cube,
           camera: widget.fallbackCamera,
+          meshPrototype: widget.meshPrototype,
         ),
       ),
     );

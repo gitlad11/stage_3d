@@ -57,8 +57,72 @@ flutter {
     source = "../.."
 }
 
+val filamentVersion = "1.71.5"
+val filamentMaterialsDir = file("src/main/assets/materials")
+val hostOs = System.getProperty("os.name").lowercase()
+val hostArch = System.getProperty("os.arch").lowercase()
+val matcClassifier = when {
+    hostOs.contains("windows") -> "windows-x86_64"
+    hostOs.contains("linux") -> "linux-x86_64"
+    hostOs.contains("mac") && (hostArch.contains("aarch64") || hostArch.contains("arm64")) ->
+        "osx-aarch_64"
+    else -> error(
+        "Unsupported Filament matc host: os=${System.getProperty("os.name")}, " +
+            "arch=${System.getProperty("os.arch")}. Filament $filamentVersion publishes " +
+            "matc for windows-x86_64, linux-x86_64, and osx-aarch_64.",
+    )
+}
+val filamentMatc by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+
+val compileFilamentMaterials by tasks.registering {
+    group = "filament"
+    description = "Compiles Filament .mat material sources into .filamat Android assets."
+
+    inputs.files(fileTree(filamentMaterialsDir) { include("*.mat", "*.shader") })
+    inputs.files(filamentMatc)
+    outputs.dir(filamentMaterialsDir)
+
+    onlyIf { filamentMaterialsDir.exists() }
+
+    doLast {
+        val matc = filamentMatc.singleFile
+        matc.setExecutable(true)
+        val sources = filamentMaterialsDir
+            .listFiles { file -> file.extension == "mat" || file.extension == "shader" }
+            .orEmpty()
+            .groupBy { it.nameWithoutExtension }
+            .values
+            .map { files -> files.firstOrNull { it.extension == "mat" } ?: files.first() }
+        sources.forEach { source ->
+                val output = source.resolveSibling("${source.nameWithoutExtension}.filamat")
+                providers.exec {
+                    commandLine(
+                        matc.absolutePath,
+                        "-p",
+                        "mobile",
+                        "-a",
+                        "opengl",
+                        "-o",
+                        output.absolutePath,
+                        source.absolutePath,
+                    )
+                }.result.get()
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name.startsWith("merge") && name.endsWith("Assets")) {
+        dependsOn(compileFilamentMaterials)
+    }
+}
+
 dependencies {
-    implementation("com.google.android.filament:filament-android:1.71.5")
-    implementation("com.google.android.filament:gltfio-android:1.71.5")
-    implementation("com.google.android.filament:filament-utils-android:1.71.5")
+    add("filamentMatc", "com.google.android.filament:matc:$filamentVersion:$matcClassifier@exe")
+    implementation("com.google.android.filament:filament-android:$filamentVersion")
+    implementation("com.google.android.filament:gltfio-android:$filamentVersion")
+    implementation("com.google.android.filament:filament-utils-android:$filamentVersion")
 }

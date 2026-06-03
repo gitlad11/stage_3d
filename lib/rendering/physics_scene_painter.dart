@@ -2,12 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../jolt_physics.dart';
 import '../scene/orbit_camera.dart';
+import 'textured_mesh_painter.dart';
+import 'textured_mesh_prototype.dart';
 
 final class PhysicsScenePainter extends CustomPainter {
-  PhysicsScenePainter({required this.cube, required this.camera});
+  PhysicsScenePainter({
+    required this.cube,
+    required this.camera,
+    required this.meshPrototype,
+  });
 
   final PhysicsTransform cube;
   final OrbitCamera camera;
+  final TexturedMeshPrototype meshPrototype;
 
   static const _edges = [
     [0, 1],
@@ -36,6 +43,7 @@ final class PhysicsScenePainter extends CustomPainter {
         ).createShader(Offset.zero & size),
     );
     _drawGrid(canvas, size);
+    _drawTexturedMesh(canvas, size);
     _drawAxes(canvas, size);
     _drawCube(canvas, size);
   }
@@ -109,6 +117,16 @@ final class PhysicsScenePainter extends CustomPainter {
     }
   }
 
+  void _drawTexturedMesh(Canvas canvas, Size size) {
+    drawTexturedMeshPrototype(
+      canvas,
+      size,
+      mesh: meshPrototype,
+      camera: camera,
+      origin: const Vector3(-2.7, 0.04, 0.3),
+    );
+  }
+
   void _drawWorldLine(
     Canvas canvas,
     Size size,
@@ -158,5 +176,7 @@ final class PhysicsScenePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(PhysicsScenePainter oldDelegate) =>
-      oldDelegate.cube != cube || oldDelegate.camera != camera;
+      oldDelegate.cube != cube ||
+      oldDelegate.camera != camera ||
+      oldDelegate.meshPrototype != meshPrototype;
 }
