@@ -54,7 +54,7 @@ class FilamentPlatformView(
         textureView.setOnTouchListener(modelViewer)
         channel.setMethodCallHandler(this)
         modelViewer.scene.skybox =
-            Skybox.Builder().color(0.025f, 0.06f, 0.11f, 1.0f).build(modelViewer.engine)
+            Skybox.Builder().color(0.16f, 0.48f, 0.78f, 1.0f).build(modelViewer.engine)
         modelViewer.scene.removeEntity(modelViewer.light)
         choreographer.postFrameCallback(this)
     }

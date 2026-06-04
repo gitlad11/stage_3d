@@ -7,24 +7,29 @@ import '../scene/orbit_camera.dart';
 import 'physics_scene_painter.dart';
 import 'render_light_controller.dart';
 import 'render_model_controller.dart';
+import 'render_scene_bridge.dart';
 import 'textured_mesh_prototype.dart';
 
 /// Controls commands sent to the native Filament demo viewport.
 ///
 /// This renderer bridge is separate from the reusable physics API.
 final class FilamentViewportController {
-  MethodChannel? _channel;
+  RenderSceneBridge? _bridge;
 
   void attach(MethodChannel channel) {
-    _channel = channel;
+    attachBridge(MethodChannelRenderSceneBridge(channel));
+  }
+
+  void attachBridge(RenderSceneBridge bridge) {
+    _bridge = bridge;
   }
 
   void detach() {
-    _channel = null;
+    _bridge = null;
   }
 
   void resetView() {
-    _channel?.invokeMethod<void>('resetView');
+    _bridge?.resetView();
   }
 }
 
@@ -40,6 +45,7 @@ class FilamentViewport extends StatefulWidget {
     required this.lightController,
     required this.modelController,
     required this.meshPrototype,
+    this.onRendererReady,
   });
 
   final PhysicsTransform cube;
@@ -48,6 +54,7 @@ class FilamentViewport extends StatefulWidget {
   final RenderLightController lightController;
   final RenderModelController modelController;
   final TexturedMeshPrototype meshPrototype;
+  final VoidCallback? onRendererReady;
 
   @override
   State<FilamentViewport> createState() => _FilamentViewportState();
@@ -61,13 +68,12 @@ class _FilamentViewportState extends State<FilamentViewport> {
 
   void _onPlatformViewCreated(int viewId) {
     _channel = MethodChannel('filament_view_$viewId');
-    widget.controller.attach(_channel!);
-    widget.lightController.attach(_channel!);
-    widget.modelController.attach(_channel!);
-    _channel!.invokeMethod<void>('createTexturedMesh', {
-      'meshId': 1,
-      ...widget.meshPrototype.toMessage(),
-    });
+    final bridge = MethodChannelRenderSceneBridge(_channel!);
+    widget.controller.attachBridge(bridge);
+    widget.lightController.attachBridge(bridge);
+    widget.modelController.attachBridge(bridge);
+    bridge.createTexturedMesh(1, widget.meshPrototype);
+    widget.onRendererReady?.call();
   }
 
   @override

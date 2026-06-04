@@ -97,6 +97,7 @@ world.dispose();
 ## Documentation
 
 - [Physics API guide](doc/physics_api.md)
+- [Rendering bridge](doc/rendering_bridge.md)
 - [Rendering lights](doc/rendering_lights.md)
 - [Rendering meshes and shaders](doc/rendering_meshes.md)
 - Public Dart entrypoint: [`lib/jolt_physics.dart`](lib/jolt_physics.dart)
