@@ -63,6 +63,32 @@ const barrel = CylinderShape(
 Box and cylinder sizes use half-extents. For example, a box with
 `halfWidth: 1` has a total width of two meters.
 
+## Compound Colliders
+
+Use `CompoundShape` when one primitive collider is not enough. Each
+`PositionedShape` is placed in local coordinates relative to the rigid body's
+world transform.
+
+```dart
+const foxCollider = CompoundShape([
+  PositionedShape(
+    shape: CapsuleShape(halfHeight: 0.65, radius: 0.45),
+  ),
+  PositionedShape(
+    shape: BoxShape(
+      halfWidth: 0.32,
+      halfHeight: 0.14,
+      halfDepth: 0.28,
+    ),
+    position: Vector3(0, -1.05, 0),
+  ),
+]);
+```
+
+This is useful for characters, vehicles, furniture, and other models where a
+single capsule or box either floats above the ground or cuts through visible
+geometry.
+
 ## Motion Types
 
 | Motion type | Use case |
@@ -307,8 +333,9 @@ rigid body. The non-Android preview backend uses approximate bounding spheres.
 
 - Android is the only platform backed by Jolt.
 - Other platforms use a lightweight preview backend for tests and UI work.
-- The public shape API currently includes box, capsule, sphere, and cylinder.
-- Collision callbacks, constraints, mesh shapes, compound shapes, character
+- The public shape API currently includes box, capsule, sphere, cylinder, and
+  compound colliders.
+- Collision callbacks, constraints, mesh shapes, character
   controllers, query filters, and multi-hit ray casts are not exposed yet.
 - The demo synchronizes both Jolt position and quaternion with the Filament
   visual model.

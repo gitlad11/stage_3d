@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 
 import '../physics/physics_transform.dart';
 import '../physics/vector3.dart';
+import 'environment.dart';
 import 'light.dart';
 import 'model_asset.dart';
 import 'textured_mesh_prototype.dart';
@@ -14,6 +15,15 @@ import 'textured_mesh_prototype.dart';
 abstract interface class RenderSceneBridge {
   /// Resets the active renderer camera/view state.
   Future<void> resetView();
+
+  /// Rotates an orbit camera by normalized frame deltas.
+  Future<void> orbitCamera(double deltaYaw, double deltaPitch);
+
+  /// Moves the active renderer camera in view space.
+  Future<void> moveCamera(double deltaX, double deltaY);
+
+  /// Applies scene-wide environment settings.
+  Future<void> setEnvironment(RenderEnvironment environment);
 
   /// Loads a reusable visual asset.
   Future<void> loadModelAsset(RenderModelAsset asset);
@@ -84,6 +94,21 @@ final class MethodChannelRenderSceneBridge implements RenderSceneBridge {
 
   @override
   Future<void> resetView() => channel.invokeMethod<void>('resetView');
+
+  @override
+  Future<void> orbitCamera(double deltaYaw, double deltaPitch) =>
+      channel.invokeMethod<void>('orbitCamera', {
+        'deltaYaw': deltaYaw,
+        'deltaPitch': deltaPitch,
+      });
+
+  @override
+  Future<void> moveCamera(double deltaX, double deltaY) => channel
+      .invokeMethod<void>('moveCamera', {'deltaX': deltaX, 'deltaY': deltaY});
+
+  @override
+  Future<void> setEnvironment(RenderEnvironment environment) =>
+      channel.invokeMethod<void>('setEnvironment', environment.toMessage());
 
   @override
   Future<void> loadModelAsset(RenderModelAsset asset) =>

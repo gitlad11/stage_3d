@@ -1,18 +1,22 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:stage_3d/physics/collider_shape.dart' as physics;
 
+import '../input/virtual_joystick.dart';
 import '../jolt_physics.dart';
 import '../rendering/filament_viewport.dart';
+import '../rendering/environment.dart';
 import '../rendering/light.dart';
+import '../rendering/render_environment_controller.dart';
 import '../rendering/model_asset.dart';
 import '../rendering/physics_debug_overlay.dart';
 import '../rendering/render_light_controller.dart';
 import '../rendering/render_model_controller.dart';
 import '../rendering/textured_mesh_prototype.dart';
+import '../scene/camera_move_prototype.dart';
 import '../scene/orbit_camera.dart';
 import '../scene/physics_scene.dart';
+import '../scene/render_model_component.dart';
 
 class PhysicsScenePage extends StatefulWidget {
   const PhysicsScenePage({super.key});
@@ -25,13 +29,17 @@ class _PhysicsScenePageState extends State<PhysicsScenePage>
     with SingleTickerProviderStateMixin {
   late final PhysicsScene _scene;
   late final OrbitCamera _camera;
+  late final VirtualJoystickController _orbitJoystick;
+  late final VirtualJoystickController _moveJoystick;
+  late final CameraMovePrototype _cameraMovePrototype;
   late final Ticker _ticker;
   late final FilamentViewportController _viewportController;
+  late final RenderEnvironmentController _environmentController;
   late final RenderLightController _lightController;
   late final RenderLight _modelLight;
   late final RenderModelController _modelController;
-  late final RenderModelInstance _foxModel;
-  late final TexturedMeshPrototype _meshPrototype;
+  late final RenderModelComponent _foxModel;
+  late final List<TexturedMeshPrototype> _groundMeshPrototypes;
   var _animations = const <ModelAnimation>[];
   var _selectedAnimationIndex = 0;
   var _animationStatus = 'Waiting for renderer';
@@ -44,7 +52,17 @@ class _PhysicsScenePageState extends State<PhysicsScenePage>
     super.initState();
     _scene = PhysicsScene()..addListener(_refresh);
     _camera = OrbitCamera()..addListener(_refresh);
+    _orbitJoystick = VirtualJoystickController();
+    _moveJoystick = VirtualJoystickController();
+    _cameraMovePrototype = const CameraMovePrototype();
     _viewportController = FilamentViewportController();
+    _environmentController = RenderEnvironmentController(
+      initialEnvironment: const RenderEnvironment(
+        skyColor: Vector3(0.44, 0.78, 0.9),
+        ambientIntensity: 45000,
+        reflectionIntensity: 0.92,
+      ),
+    );
     _lightController = RenderLightController()
       ..createLight(
         const DirectionalLight(
@@ -62,49 +80,24 @@ class _PhysicsScenePageState extends State<PhysicsScenePage>
       ),
     );
     _modelController = RenderModelController();
-    const grassAtlasTexture = MeshTexturePrototype.asset(
-      assetPath: 'textures/grass_pbr_atlas.png',
-      sourceRegion: MeshTextureRegion(
-        left: 7 / 1536,
-        top: 50 / 1024,
-        right: 372 / 1536,
-        bottom: 424 / 1024,
-      ),
-      repeatU: 2,
-      repeatV: 2,
-    );
-    _meshPrototype = TexturedMeshPrototype.terrain(
-      width: 4,
-      depth: 2.5,
-      heightMap: MeshHeightMap.wave(columns: 18, rows: 14, heightScale: 0.35),
-      texture: grassAtlasTexture,
-      material: MeshMaterialPrototype.shaderSource(
-        shaderAssetPath: 'materials/grass_wind.shader',
-        texture: grassAtlasTexture,
-        roughnessFactor: 0.92,
-        doubleSided: true,
-        uniforms: [
-          MaterialShaderUniform.float('windStrength', 0.18),
-          MaterialShaderUniform.float('windScale', 3),
-          MaterialShaderUniform.color('tint', Color(0xffd9f99d)),
-        ],
-      ),
-      collider: const MeshColliderPrototype.staticBox(
-        physics.BoxShape(halfWidth: 8, halfHeight: 0.25, halfDepth: 8),
-      ),
-    );
+    _groundMeshPrototypes = [_createJoltFloorVisual()];
     final foxAsset = _modelController.loadAsset(
       const ModelAsset(assetPath: 'models/Fox.glb', animationIndex: 0),
     );
-    _foxModel = _modelController.createInstance(
-      foxAsset,
-      transform: _scene.model.transform,
+    _foxModel = _scene.modelObject.add(
+      RenderModelComponent(
+        controller: _modelController,
+        asset: foxAsset,
+        visualOffset: const Vector3(0, 0.2, 0),
+      ),
     );
     _ticker = createTicker(_onTick)..start();
   }
 
   Future<void> _loadAnimations() async {
-    final animations = await _modelController.getAnimations(_foxModel);
+    final animations = await _modelController.getAnimations(
+      _foxModel.requireInstance,
+    );
     if (!mounted) {
       return;
     }
@@ -120,7 +113,10 @@ class _PhysicsScenePageState extends State<PhysicsScenePage>
   }
 
   void _playAnimation(ModelAnimation animation) {
-    _modelController.playAnimation(_foxModel, animationIndex: animation.index);
+    _modelController.playAnimation(
+      _foxModel.requireInstance,
+      animationIndex: animation.index,
+    );
     setState(() {
       _selectedAnimationIndex = animation.index;
       _animationStatus =
@@ -143,14 +139,27 @@ class _PhysicsScenePageState extends State<PhysicsScenePage>
     _scene.step(
       (elapsed - previous).inMicroseconds / Duration.microsecondsPerSecond,
     );
+    final deltaSeconds =
+        (elapsed - previous).inMicroseconds / Duration.microsecondsPerSecond;
+    final orbit = _orbitJoystick.value;
+    const orbitSpeed = 0.65;
+    final deltaYaw = orbit.x * orbitSpeed * deltaSeconds;
+    final deltaPitch = orbit.y * orbitSpeed * deltaSeconds;
+    _camera.orbitBy(deltaYaw, deltaPitch);
+    _viewportController.orbitCamera(deltaYaw, deltaPitch);
+    final move = _moveJoystick.value;
+    _cameraMovePrototype.moveCamera(_camera, move, deltaSeconds);
+    final nativeMove = _cameraMovePrototype.nativeMove(move, deltaSeconds);
+    _viewportController.moveCamera(nativeMove.right, nativeMove.forward);
     final position = _scene.model.transform.position;
     _lightController.setPosition(_modelLight, position.translate(0, 1.5, 0.5));
-    _modelController.setTransform(_foxModel, _scene.model.transform);
   }
 
   @override
   void dispose() {
     _ticker.dispose();
+    _orbitJoystick.dispose();
+    _moveJoystick.dispose();
     _camera
       ..removeListener(_refresh)
       ..dispose();
@@ -174,9 +183,10 @@ class _PhysicsScenePageState extends State<PhysicsScenePage>
                 cube: cube,
                 fallbackCamera: _camera,
                 controller: _viewportController,
+                environmentController: _environmentController,
                 lightController: _lightController,
                 modelController: _modelController,
-                meshPrototype: _meshPrototype,
+                meshPrototypes: _groundMeshPrototypes,
                 onRendererReady: _loadAnimations,
               ),
             ),
@@ -239,10 +249,58 @@ class _PhysicsScenePageState extends State<PhysicsScenePage>
                   : null,
             ),
           ),
+          Align(
+            alignment: Alignment.bottomLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 70),
+              child: VirtualJoystick(
+                key: const ValueKey('move-joystick'),
+                controller: _moveJoystick,
+                size: compact ? 96 : 116,
+                accentColor: const Color(0xff67e8f9),
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.bottomRight,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 70),
+              child: VirtualJoystick(
+                key: const ValueKey('orbit-joystick'),
+                controller: _orbitJoystick,
+                size: compact ? 96 : 116,
+                accentColor: const Color(0xffc4b5fd),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
+}
+
+TexturedMeshPrototype _createJoltFloorVisual() {
+  const texture = MeshTexturePrototype.asset(
+    assetPath: 'textures/grass_pbr_atlas.png',
+    sourceRegion: MeshTextureRegion(
+      left: 7 / 1536,
+      top: 50 / 1024,
+      right: 372 / 1536,
+      bottom: 424 / 1024,
+    ),
+    repeatU: 6,
+    repeatV: 6,
+  );
+  return TexturedMeshPrototype.plane(
+    width: 16,
+    depth: 16,
+    texture: texture,
+    material: MeshMaterialPrototype.checker(
+      texture,
+      roughnessFactor: 0.9,
+      doubleSided: true,
+    ),
+  );
 }
 
 class _SceneHeader extends StatelessWidget {

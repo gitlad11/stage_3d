@@ -13,12 +13,15 @@ final class OrbitCamera extends ChangeNotifier {
   double _pitch = _defaultPitch;
   double _distance = _defaultDistance;
   double _scaleStartDistance = _defaultDistance;
+  Vector3 _target = Vector3.zero;
 
   double get yaw => _yaw;
 
   double get pitch => _pitch;
 
   double get distance => _distance;
+
+  Vector3 get target => _target;
 
   void beginGesture() {
     _scaleStartDistance = _distance;
@@ -34,10 +37,36 @@ final class OrbitCamera extends ChangeNotifier {
     notifyListeners();
   }
 
+  void orbitBy(double deltaYaw, double deltaPitch) {
+    if (deltaYaw == 0 && deltaPitch == 0) {
+      return;
+    }
+    _yaw += deltaYaw;
+    _pitch = (_pitch + deltaPitch).clamp(-0.15, 1.2);
+    notifyListeners();
+  }
+
+  void moveTargetBy({required double right, required double forward}) {
+    if (right == 0 && forward == 0) {
+      return;
+    }
+    final yawCos = math.cos(_yaw);
+    final yawSin = math.sin(_yaw);
+    final worldRight = Vector3(yawCos, 0, -yawSin);
+    final worldForward = Vector3(yawSin, 0, yawCos);
+    _target = Vector3(
+      _target.x + worldRight.x * right + worldForward.x * forward,
+      _target.y,
+      _target.z + worldRight.z * right + worldForward.z * forward,
+    );
+    notifyListeners();
+  }
+
   void reset() {
     _yaw = _defaultYaw;
     _pitch = _defaultPitch;
     _distance = _defaultDistance;
+    _target = Vector3.zero;
     notifyListeners();
   }
 
@@ -52,16 +81,21 @@ final class OrbitCamera extends ChangeNotifier {
   }
 
   Vector3 _worldToCamera(Vector3 point) {
+    final relative = Vector3(
+      point.x - _target.x,
+      point.y - _target.y,
+      point.z - _target.z,
+    );
     final yawCos = math.cos(_yaw);
     final yawSin = math.sin(_yaw);
-    final yawX = point.x * yawCos - point.z * yawSin;
-    final yawZ = point.x * yawSin + point.z * yawCos;
+    final yawX = relative.x * yawCos - relative.z * yawSin;
+    final yawZ = relative.x * yawSin + relative.z * yawCos;
     final pitchCos = math.cos(_pitch);
     final pitchSin = math.sin(_pitch);
     return Vector3(
       yawX,
-      point.y * pitchCos - yawZ * pitchSin,
-      point.y * pitchSin + yawZ * pitchCos,
+      relative.y * pitchCos - yawZ * pitchSin,
+      relative.y * pitchSin + yawZ * pitchCos,
     );
   }
 }

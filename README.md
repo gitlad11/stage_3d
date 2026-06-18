@@ -8,11 +8,14 @@ If this package helps your project, please consider starring the repository.
 
 # Stage 3D
 
-**Stage 3D is a Flutter runtime for prototyping interactive 3D scenes with
-native rendering, physics, animations, lighting, and spatial queries.**
+**Stage 3D is a Flutter 3D Gateway API for building interactive 3D experiences
+with native rendering, physics, assets, animation, lighting, scene components,
+and spatial queries.**
 
-Use Stage 3D when a Flutter application or game needs reusable native 3D
-building blocks without embedding scene logic directly in UI widgets.
+Stage 3D connects Flutter apps to native 3D capabilities through a reusable
+gateway API. Use the component-friendly `StageScene` runtime, build your own
+scene layer, or use the rendering, physics, input, material, lighting,
+animation, and spatial query APIs independently inside any Flutter UI.
 
 Stage 3D currently combines
 [Jolt Physics](https://github.com/jrouwe/JoltPhysics) `v5.5.0` with
@@ -24,7 +27,7 @@ Stage 3D currently combines
 | --- | --- |
 | Physics worlds | Create, step, and dispose reusable `PhysicsWorld` instances |
 | Rigid bodies | Static, kinematic, and dynamic bodies |
-| Collider shapes | Box, capsule, sphere, and cylinder |
+| Collider shapes | Box, capsule, sphere, cylinder, and compound colliders |
 | Spatial queries | Finite Jolt ray casts with closest-hit results |
 | Native rendering | Filament Android viewport |
 | 3D assets | Reusable `.glb` assets and independent visual instances |
@@ -100,6 +103,8 @@ world.dispose();
 - [Rendering bridge](doc/rendering_bridge.md)
 - [Rendering lights](doc/rendering_lights.md)
 - [Rendering meshes and shaders](doc/rendering_meshes.md)
+- [Stage scene runtime](doc/stage_scene.md)
+- [Virtual joystick](doc/virtual_joystick.md)
 - Public Dart entrypoint: [`lib/jolt_physics.dart`](lib/jolt_physics.dart)
 - Rendering entrypoint: [`lib/jolt_rendering.dart`](lib/jolt_rendering.dart)
 - Collider prototypes: [`lib/physics/collider_shape.dart`](lib/physics/collider_shape.dart)
@@ -134,9 +139,10 @@ kept separate so a visual model can use the collider that best fits gameplay.
 Procedural mesh prototypes currently serialize from Dart into the Android
 Filament bridge as temporary GLB assets. They support generated planes,
 heightmapped terrain, atlas texture crops, recalculated normals, basic PBR
-settings, optional collider metadata, and shader material metadata. Compiled
-`.filamat` shader assets can be described from Dart; applying custom
-`.filamat` materials inside the Android renderer is the next integration step.
+settings, optional collider metadata, and custom Filament shader materials.
+Dart can describe `.mat` / `.shader` sources, compiled `.filamat` assets,
+scalar uniforms, color uniforms, and named texture uniforms such as normal or
+roughness maps.
 
 ## Run The Demo
 
@@ -157,7 +163,7 @@ builds also show a compact top-down collider map with `BodyId` labels.
 | Other Flutter targets | Lightweight preview backend |
 
 The current public shape API supports `BoxShape`, `CapsuleShape`,
-`SphereShape`, and `CylinderShape`.
+`SphereShape`, `CylinderShape`, and `CompoundShape`.
 
 ## Native Files
 

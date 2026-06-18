@@ -75,4 +75,28 @@ void main() {
     expect(hit?.distance, closeTo(4, 0.0001));
     expect(hit?.fraction, closeTo(0.4, 0.0001));
   });
+
+  test('world accepts compound bodies made from positioned shapes', () {
+    final world = createPhysicsWorld();
+    addTearDown(world.dispose);
+
+    final body = world.createBody(
+      const RigidBodySettings(
+        shape: CompoundShape([
+          PositionedShape(shape: CapsuleShape(halfHeight: 0.65, radius: 0.45)),
+          PositionedShape(
+            shape: BoxShape(halfWidth: 0.32, halfHeight: 0.14, halfDepth: 0.28),
+            position: Vector3(0, -1.05, 0),
+          ),
+        ]),
+        motionType: MotionType.dynamic,
+        transform: PhysicsTransform(position: Vector3(0, 3, 0)),
+      ),
+    );
+
+    world.step(1 / 60);
+
+    expect(body.settings.shape, isA<CompoundShape>());
+    expect(world.snapshotBodies(), hasLength(1));
+  });
 }

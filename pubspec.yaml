@@ -1,12 +1,12 @@
 name: stage_3d
-description: "Flutter runtime for interactive 3D scenes with native rendering, physics, animations, lighting, and spatial queries."
+description: "Flutter 3D Gateway API for native rendering, physics, assets, animation, lighting, scene components, and spatial queries."
 repository: https://github.com/gitlad11/stage_3d
 topics:
   - flutter
   - 3d
   - physics
   - rendering
-  - game-engine
+  - filament
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

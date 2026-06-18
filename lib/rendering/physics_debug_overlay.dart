@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../jolt_physics.dart'
-    hide BoxShape, CapsuleShape, ColliderShape, CylinderShape, SphereShape;
+    hide
+        BoxShape,
+        CapsuleShape,
+        ColliderShape,
+        CompoundShape,
+        CylinderShape,
+        PositionedShape,
+        SphereShape;
 import '../physics/collider_shape.dart' as physics;
 
 /// Debug-only inspector for invisible Jolt collider shapes.
@@ -137,6 +144,10 @@ final class _ColliderMapPainter extends CustomPainter {
         point.translate(shape.radius * scale, 0),
         paint..strokeWidth = 1,
       );
+    } else if (shape is physics.CompoundShape) {
+      for (final child in shape.children) {
+        _drawCompoundChild(canvas, point, scale, child, paint);
+      }
     }
     final label = TextPainter(
       text: TextSpan(
@@ -146,6 +157,41 @@ final class _ColliderMapPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     )..layout();
     label.paint(canvas, point + const Offset(4, -13));
+  }
+
+  void _drawCompoundChild(
+    Canvas canvas,
+    Offset bodyPoint,
+    double scale,
+    physics.PositionedShape child,
+    Paint paint,
+  ) {
+    final point = bodyPoint.translate(
+      child.position.x * scale,
+      child.position.z * scale,
+    );
+    final shape = child.shape;
+    if (shape is physics.BoxShape) {
+      canvas.drawRect(
+        Rect.fromCenter(
+          center: point,
+          width: shape.halfWidth * 2 * scale,
+          height: shape.halfDepth * 2 * scale,
+        ),
+        paint,
+      );
+    } else if (shape is physics.SphereShape) {
+      canvas.drawCircle(point, shape.radius * scale, paint);
+    } else if (shape is physics.CapsuleShape) {
+      canvas.drawCircle(point, shape.radius * scale, paint);
+      canvas.drawCircle(
+        point,
+        (shape.radius + shape.halfHeight * 0.25) * scale,
+        paint..strokeWidth = 1,
+      );
+    } else if (shape is physics.CylinderShape) {
+      canvas.drawCircle(point, shape.radius * scale, paint);
+    }
   }
 
   @override

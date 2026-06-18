@@ -16,6 +16,21 @@ void main() {
       'assetPath': 'models/room.glb',
       'normalizedScale': 2,
       'animationIndex': 1,
+      'verticalAnchor': 'center',
+    });
+  });
+
+  test('ModelAsset serializes vertical anchor', () {
+    const asset = ModelAsset(
+      assetPath: 'models/tree.glb',
+      verticalAnchor: ModelVerticalAnchor.bottom,
+    );
+
+    expect(asset.toMessage(), {
+      'assetPath': 'models/tree.glb',
+      'normalizedScale': 1,
+      'animationIndex': null,
+      'verticalAnchor': 'bottom',
     });
   });
 
@@ -154,6 +169,39 @@ void main() {
         ],
       },
       'filamatAssetPath': 'materials/grass_wind.filamat',
+    });
+  });
+
+  test('MeshMaterialPrototype serializes named texture uniforms', () {
+    const normalTexture = MeshTexturePrototype.asset(
+      assetPath: 'textures/water_ocean_pbr_atlas.png',
+      sourceRegion: MeshTextureRegion(
+        left: 316 / 1254,
+        top: 68 / 1254,
+        right: 626 / 1254,
+        bottom: 377 / 1254,
+      ),
+    );
+    final material = MeshMaterialPrototype.shaderSource(
+      shaderAssetPath: 'materials/water.shader',
+      textureUniforms: const {'normalMap': normalTexture},
+    );
+
+    expect(material.toMessage()['textureUniforms'], {
+      'normalMap': {
+        'kind': 'asset',
+        'primaryColor': const Color(0xff14b8a6).toARGB32(),
+        'secondaryColor': const Color(0xfff8fafc).toARGB32(),
+        'repeatU': 1.0,
+        'repeatV': 1.0,
+        'assetPath': 'textures/water_ocean_pbr_atlas.png',
+        'sourceRegion': {
+          'left': 316 / 1254,
+          'top': 68 / 1254,
+          'right': 626 / 1254,
+          'bottom': 377 / 1254,
+        },
+      },
     });
   });
 

@@ -10,6 +10,7 @@
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/CylinderShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
+#include <Jolt/Physics/Collision/Shape/StaticCompoundShape.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/RegisterTypes.h>
 
@@ -139,10 +140,28 @@ struct PhysicsWorld {
                       float shape_c, int motion_type, float x, float y,
                       float z, float friction, float restitution,
                       bool is_sensor) {
+    return CreateBodyFromShape(CreateShape(shape_type, shape_a, shape_b, shape_c),
+                               motion_type, x, y, z, friction, restitution,
+                               is_sensor);
+  }
+
+  uint32_t CreateCompoundBody(StaticCompoundShapeSettings *compound_settings,
+                              int motion_type, float x, float y, float z,
+                              float friction, float restitution,
+                              bool is_sensor) {
+    ShapeSettings::ShapeResult result = compound_settings->Create();
+    if (result.HasError()) {
+      return 0;
+    }
+    return CreateBodyFromShape(result.Get(), motion_type, x, y, z, friction,
+                               restitution, is_sensor);
+  }
+
+  uint32_t CreateBodyFromShape(RefConst<Shape> shape, int motion_type, float x,
+                               float y, float z, float friction,
+                               float restitution, bool is_sensor) {
     const EMotionType motion = ToMotionType(motion_type);
-    BodyCreationSettings settings(
-        CreateShape(shape_type, shape_a, shape_b, shape_c), RVec3(x, y, z),
-        Quat::sIdentity(), motion,
+    BodyCreationSettings settings(shape, RVec3(x, y, z), Quat::sIdentity(), motion,
         motion == EMotionType::Static ? Layers::kStatic : Layers::kMoving);
     settings.mFriction = friction;
     settings.mRestitution = restitution;
@@ -195,6 +214,10 @@ PhysicsWorld *WorldFromHandle(int64_t handle) {
 
 BodyID BodyFromHandle(uint32_t handle) { return BodyID(handle); }
 
+StaticCompoundShapeSettings *CompoundFromHandle(int64_t handle) {
+  return reinterpret_cast<StaticCompoundShapeSettings *>(handle);
+}
+
 }  // namespace
 
 #define JOLT_FFI_EXPORT extern "C" __attribute__((visibility("default"))) \
@@ -236,6 +259,32 @@ JOLT_FFI_EXPORT uint32_t jolt_body_create(
     float restitution, bool is_sensor) {
   return WorldFromHandle(world)->CreateBody(
       shape_type, shape_a, shape_b, shape_c, motion_type, x, y, z, friction,
+      restitution, is_sensor);
+}
+
+JOLT_FFI_EXPORT int64_t jolt_compound_create() {
+  return reinterpret_cast<int64_t>(new StaticCompoundShapeSettings());
+}
+
+JOLT_FFI_EXPORT void jolt_compound_destroy(int64_t compound) {
+  delete CompoundFromHandle(compound);
+}
+
+JOLT_FFI_EXPORT void jolt_compound_add_shape(
+    int64_t compound, int shape_type, float shape_a, float shape_b,
+    float shape_c, float offset_x, float offset_y, float offset_z,
+    float rotation_x, float rotation_y, float rotation_z, float rotation_w) {
+  CompoundFromHandle(compound)->AddShape(
+      Vec3(offset_x, offset_y, offset_z),
+      Quat(rotation_x, rotation_y, rotation_z, rotation_w),
+      CreateShape(shape_type, shape_a, shape_b, shape_c));
+}
+
+JOLT_FFI_EXPORT uint32_t jolt_body_create_compound(
+    int64_t world, int64_t compound, int motion_type, float x, float y,
+    float z, float friction, float restitution, bool is_sensor) {
+  return WorldFromHandle(world)->CreateCompoundBody(
+      CompoundFromHandle(compound), motion_type, x, y, z, friction,
       restitution, is_sensor);
 }
 

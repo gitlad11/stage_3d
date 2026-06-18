@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../jolt_physics.dart';
 import '../scene/orbit_camera.dart';
 import 'physics_scene_painter.dart';
+import 'render_environment_controller.dart';
 import 'render_light_controller.dart';
 import 'render_model_controller.dart';
 import 'render_scene_bridge.dart';
@@ -31,6 +32,14 @@ final class FilamentViewportController {
   void resetView() {
     _bridge?.resetView();
   }
+
+  void orbitCamera(double deltaYaw, double deltaPitch) {
+    _bridge?.orbitCamera(deltaYaw, deltaPitch);
+  }
+
+  void moveCamera(double deltaX, double deltaY) {
+    _bridge?.moveCamera(deltaX, deltaY);
+  }
 }
 
 /// Android Filament viewport used by the example application.
@@ -42,18 +51,20 @@ class FilamentViewport extends StatefulWidget {
     required this.cube,
     required this.fallbackCamera,
     required this.controller,
+    this.environmentController,
     required this.lightController,
     required this.modelController,
-    required this.meshPrototype,
+    required this.meshPrototypes,
     this.onRendererReady,
   });
 
   final PhysicsTransform cube;
   final OrbitCamera fallbackCamera;
   final FilamentViewportController controller;
+  final RenderEnvironmentController? environmentController;
   final RenderLightController lightController;
   final RenderModelController modelController;
-  final TexturedMeshPrototype meshPrototype;
+  final List<TexturedMeshPrototype> meshPrototypes;
   final VoidCallback? onRendererReady;
 
   @override
@@ -70,15 +81,19 @@ class _FilamentViewportState extends State<FilamentViewport> {
     _channel = MethodChannel('filament_view_$viewId');
     final bridge = MethodChannelRenderSceneBridge(_channel!);
     widget.controller.attachBridge(bridge);
+    widget.environmentController?.attachBridge(bridge);
     widget.lightController.attachBridge(bridge);
+    for (final (index, mesh) in widget.meshPrototypes.indexed) {
+      bridge.createTexturedMesh(index + 1, mesh);
+    }
     widget.modelController.attachBridge(bridge);
-    bridge.createTexturedMesh(1, widget.meshPrototype);
     widget.onRendererReady?.call();
   }
 
   @override
   void dispose() {
     widget.controller.detach();
+    widget.environmentController?.detach();
     widget.lightController.detach();
     widget.modelController.detach();
     super.dispose();
@@ -100,7 +115,7 @@ class _FilamentViewportState extends State<FilamentViewport> {
         painter: PhysicsScenePainter(
           cube: widget.cube,
           camera: widget.fallbackCamera,
-          meshPrototype: widget.meshPrototype,
+          meshPrototypes: widget.meshPrototypes,
         ),
       ),
     );

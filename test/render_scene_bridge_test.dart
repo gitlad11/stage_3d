@@ -46,6 +46,28 @@ void main() {
       'destroyLight:1',
     ]);
   });
+
+  test(
+    'RenderEnvironmentController sends environment settings through bridge',
+    () {
+      final bridge = _RecordingBridge();
+      final environment = RenderEnvironmentController(
+        initialEnvironment: const RenderEnvironment(
+          skyColor: Vector3(0.2, 0.4, 0.8),
+          reflectionIntensity: 0.75,
+        ),
+      )..attachBridge(bridge);
+
+      environment.setEnvironment(
+        const RenderEnvironment(
+          skyColor: Vector3(0.4, 0.8, 0.9),
+          reflectionIntensity: 0.95,
+        ),
+      );
+
+      expect(bridge.events, ['setEnvironment', 'setEnvironment']);
+    },
+  );
 }
 
 final class _RecordingBridge implements RenderSceneBridge {
@@ -54,6 +76,21 @@ final class _RecordingBridge implements RenderSceneBridge {
   @override
   Future<void> resetView() async {
     events.add('resetView');
+  }
+
+  @override
+  Future<void> orbitCamera(double deltaYaw, double deltaPitch) async {
+    events.add('orbitCamera');
+  }
+
+  @override
+  Future<void> moveCamera(double deltaX, double deltaY) async {
+    events.add('moveCamera');
+  }
+
+  @override
+  Future<void> setEnvironment(RenderEnvironment environment) async {
+    events.add('setEnvironment');
   }
 
   @override

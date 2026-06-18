@@ -56,6 +56,54 @@ typedef _CreateBodyDart =
       double,
       bool,
     );
+typedef _CreateCompoundNative = Int64 Function();
+typedef _CreateCompoundDart = int Function();
+typedef _DestroyCompoundNative = Void Function(Int64);
+typedef _DestroyCompoundDart = void Function(int);
+typedef _AddCompoundChildNative =
+    Void Function(
+      Int64,
+      Int32,
+      Float,
+      Float,
+      Float,
+      Float,
+      Float,
+      Float,
+      Float,
+      Float,
+      Float,
+      Float,
+    );
+typedef _AddCompoundChildDart =
+    void Function(
+      int,
+      int,
+      double,
+      double,
+      double,
+      double,
+      double,
+      double,
+      double,
+      double,
+      double,
+      double,
+    );
+typedef _CreateCompoundBodyNative =
+    Uint32 Function(
+      Int64,
+      Int64,
+      Int32,
+      Float,
+      Float,
+      Float,
+      Float,
+      Float,
+      Bool,
+    );
+typedef _CreateCompoundBodyDart =
+    int Function(int, int, int, double, double, double, double, double, bool);
 typedef _BodyNative = Void Function(Int64, Uint32);
 typedef _BodyDart = void Function(int, int);
 typedef _ReadBodyNative = Float Function(Int64, Uint32, Int32);
@@ -223,6 +271,22 @@ final class _JoltPhysicsWorld implements PhysicsWorld, PhysicsQueries {
     _createBody = library.lookupFunction<_CreateBodyNative, _CreateBodyDart>(
       'jolt_body_create',
     );
+    _createCompound = library
+        .lookupFunction<_CreateCompoundNative, _CreateCompoundDart>(
+          'jolt_compound_create',
+        );
+    _destroyCompound = library
+        .lookupFunction<_DestroyCompoundNative, _DestroyCompoundDart>(
+          'jolt_compound_destroy',
+        );
+    _addCompoundChild = library
+        .lookupFunction<_AddCompoundChildNative, _AddCompoundChildDart>(
+          'jolt_compound_add_shape',
+        );
+    _createCompoundBody = library
+        .lookupFunction<_CreateCompoundBodyNative, _CreateCompoundBodyDart>(
+          'jolt_body_create_compound',
+        );
     _destroyBody = library.lookupFunction<_BodyNative, _BodyDart>(
       'jolt_body_destroy',
     );
@@ -278,6 +342,10 @@ final class _JoltPhysicsWorld implements PhysicsWorld, PhysicsQueries {
   late final _WorldDart _destroyWorld;
   late final _StepDart _step;
   late final _CreateBodyDart _createBody;
+  late final _CreateCompoundDart _createCompound;
+  late final _DestroyCompoundDart _destroyCompound;
+  late final _AddCompoundChildDart _addCompoundChild;
+  late final _CreateCompoundBodyDart _createCompoundBody;
   late final _BodyDart _destroyBody;
   late final _ReadBodyDart _readPosition;
   late final _ReadBodyDart _readRotation;
@@ -303,9 +371,22 @@ final class _JoltPhysicsWorld implements PhysicsWorld, PhysicsQueries {
 
   @override
   RigidBody createBody(RigidBodySettings settings) {
+    final id = _createNativeBody(settings);
+    final body = RigidBody(id: BodyId(id), settings: settings);
+    _bodies[id] = body;
+    setTransform(body, settings.transform);
+    setLinearVelocity(body, settings.linearVelocity);
+    setAngularVelocity(body, settings.angularVelocity);
+    return body;
+  }
+
+  int _createNativeBody(RigidBodySettings settings) {
     final shape = settings.shape;
     final position = settings.transform.position;
-    final id = _createBody(
+    if (shape is CompoundShape) {
+      return _createNativeCompoundBody(settings, shape);
+    }
+    return _createBody(
       _handle,
       shape.nativeType,
       shape.nativeA,
@@ -319,12 +400,60 @@ final class _JoltPhysicsWorld implements PhysicsWorld, PhysicsQueries {
       settings.restitution,
       settings.isSensor,
     );
-    final body = RigidBody(id: BodyId(id), settings: settings);
-    _bodies[id] = body;
-    setTransform(body, settings.transform);
-    setLinearVelocity(body, settings.linearVelocity);
-    setAngularVelocity(body, settings.angularVelocity);
-    return body;
+  }
+
+  int _createNativeCompoundBody(
+    RigidBodySettings settings,
+    CompoundShape shape,
+  ) {
+    if (shape.children.isEmpty) {
+      throw ArgumentError.value(
+        shape,
+        'shape',
+        'CompoundShape must contain at least one PositionedShape.',
+      );
+    }
+    final compound = _createCompound();
+    try {
+      for (final child in shape.children) {
+        final childShape = child.shape;
+        if (childShape is CompoundShape) {
+          throw UnsupportedError('Nested CompoundShape is not supported yet.');
+        }
+        _addCompoundChild(
+          compound,
+          childShape.nativeType,
+          childShape.nativeA,
+          childShape.nativeB,
+          childShape.nativeC,
+          child.position.x,
+          child.position.y,
+          child.position.z,
+          child.rotation.x,
+          child.rotation.y,
+          child.rotation.z,
+          child.rotation.w,
+        );
+      }
+      final position = settings.transform.position;
+      final id = _createCompoundBody(
+        _handle,
+        compound,
+        settings.motionType.nativeValue,
+        position.x,
+        position.y,
+        position.z,
+        settings.friction,
+        settings.restitution,
+        settings.isSensor,
+      );
+      if (id == 0) {
+        throw StateError('Jolt failed to create CompoundShape body.');
+      }
+      return id;
+    } finally {
+      _destroyCompound(compound);
+    }
   }
 
   @override
@@ -656,6 +785,15 @@ final class _PreviewPhysicsWorld implements PhysicsWorld, PhysicsQueries {
     CylinderShape() => math.sqrt(
       shape.halfHeight * shape.halfHeight + shape.radius * shape.radius,
     ),
+    CompoundShape() => shape.children.fold(0, (radius, child) {
+      final position = child.position;
+      final childDistance = math.sqrt(
+        position.x * position.x +
+            position.y * position.y +
+            position.z * position.z,
+      );
+      return math.max(radius, childDistance + _previewRadius(child.shape));
+    }),
   };
 }
 

@@ -139,6 +139,97 @@ Current status: shader metadata is serialized to the native bridge. Android
 loads the compiled `.filamat`, creates a Filament material instance, and applies
 it to the procedural mesh at runtime.
 
+## Custom Shader Textures
+
+Custom materials can receive one main texture through `texture`. The Android
+renderer binds that texture to a sampler named `albedo`.
+
+```dart
+final material = MeshMaterialPrototype.shaderSource(
+  shaderAssetPath: 'materials/my_water.shader',
+  texture: albedoTexture,
+);
+```
+
+Shaders that need more maps can use named texture uniforms. This is useful for
+PBR atlases where albedo, normal, and roughness live in different regions of
+one PNG.
+
+```dart
+const waterAlbedo = MeshTexturePrototype.asset(
+  assetPath: 'textures/water_ocean_pbr_atlas.png',
+  sourceRegion: MeshTextureRegion.pixels(
+    imageWidth: 1254,
+    imageHeight: 1254,
+    x: 3,
+    y: 68,
+    width: 311,
+    height: 309,
+  ),
+);
+
+const waterNormal = MeshTexturePrototype.asset(
+  assetPath: 'textures/water_ocean_pbr_atlas.png',
+  sourceRegion: MeshTextureRegion.pixels(
+    imageWidth: 1254,
+    imageHeight: 1254,
+    x: 316,
+    y: 68,
+    width: 310,
+    height: 309,
+  ),
+);
+
+final material = MeshMaterialPrototype.shaderSource(
+  shaderAssetPath: 'materials/water.shader',
+  texture: waterAlbedo,
+  textureUniforms: const {
+    'normalMap': waterNormal,
+  },
+  uniforms: [
+    MaterialShaderUniform.float('normalStrength', 0.5),
+    MaterialShaderUniform.color('tint', const Color(0xffd7f8ff)),
+  ],
+);
+```
+
+The names in `textureUniforms` must match sampler parameters in the Filament
+material source:
+
+```glsl
+parameters : [
+    {
+        type : sampler2d,
+        name : albedo
+    },
+    {
+        type : sampler2d,
+        name : normalMap
+    },
+    {
+        type : float,
+        name : normalStrength
+    }
+]
+```
+
+The current Android backend supports:
+
+- `.mat` and `.shader` source files in Android assets;
+- build-time compilation to `.filamat`;
+- direct use of precompiled `.filamat` assets;
+- main `albedo` texture;
+- additional named sampler textures through `textureUniforms`;
+- `float`, `bool`, and `color` uniforms.
+
+Limitations:
+
+- material source files must be available at Android build time;
+- runtime loading uses compiled `.filamat`, not raw `.mat` / `.shader`;
+- iOS, desktop, and web renderers do not yet implement this Filament material
+  pipeline;
+- sampler and uniform names must exactly match the material source.
+
 ## Compiling Materials
 
 The Android Gradle project has a `compileFilamentMaterials` task. It downloads

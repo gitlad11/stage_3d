@@ -10,6 +10,7 @@ final class ModelAsset {
     required this.assetPath,
     this.normalizedScale = 1,
     this.animationIndex,
+    this.verticalAnchor = ModelVerticalAnchor.center,
   }) : assert(normalizedScale > 0);
 
   /// Android asset path, for example `models/Fox.glb`.
@@ -21,12 +22,28 @@ final class ModelAsset {
   /// Optional glTF animation clip played in a loop.
   final int? animationIndex;
 
+  /// Which vertical point of the model bounds is placed at the transform.
+  final ModelVerticalAnchor verticalAnchor;
+
   /// Serializes asset settings for the native renderer bridge.
   Map<String, Object?> toMessage() => {
     'assetPath': assetPath,
     'normalizedScale': normalizedScale,
     'animationIndex': animationIndex,
+    'verticalAnchor': verticalAnchor.name,
   };
+}
+
+/// Vertical point of a GLB model used when applying a transform position.
+enum ModelVerticalAnchor {
+  /// Preserve the model's original root/origin point.
+  origin,
+
+  /// Place the center of the model bounds at the transform position.
+  center,
+
+  /// Place the bottom of the model bounds at the transform position.
+  bottom,
 }
 
 /// Stable identifier for a renderer asset.

@@ -248,6 +248,7 @@ final class MeshMaterialPrototype {
     required this.roughnessFactor,
     required this.doubleSided,
     this.texture,
+    this.textureUniforms = const {},
     this.shader,
     this.matAssetPath,
     this.filamatAssetPath,
@@ -276,6 +277,7 @@ final class MeshMaterialPrototype {
   factory MeshMaterialPrototype.shader({
     required MaterialShaderPrototype shader,
     MeshTexturePrototype? texture,
+    Map<String, MeshTexturePrototype> textureUniforms = const {},
     Color baseColor = Colors.white,
     double metallicFactor = 0,
     double roughnessFactor = 0.85,
@@ -287,6 +289,7 @@ final class MeshMaterialPrototype {
       kind: MeshMaterialKind.shader,
       shader: shader,
       texture: texture,
+      textureUniforms: textureUniforms,
       matAssetPath: shader.sourceAssetPath?.endsWith('.mat') == true
           ? shader.sourceAssetPath
           : null,
@@ -302,6 +305,7 @@ final class MeshMaterialPrototype {
   factory MeshMaterialPrototype.filamentSource({
     required String matAssetPath,
     String? filamatAssetPath,
+    Map<String, MeshTexturePrototype> textureUniforms = const {},
     Color baseColor = Colors.white,
     double metallicFactor = 0,
     double roughnessFactor = 0.85,
@@ -322,6 +326,7 @@ final class MeshMaterialPrototype {
       shader: shader,
       matAssetPath: matAssetPath,
       filamatAssetPath: compiledAssetPath,
+      textureUniforms: textureUniforms,
       baseColor: baseColor,
       metallicFactor: metallicFactor,
       roughnessFactor: roughnessFactor,
@@ -333,6 +338,7 @@ final class MeshMaterialPrototype {
     required String shaderAssetPath,
     String? filamatAssetPath,
     MeshTexturePrototype? texture,
+    Map<String, MeshTexturePrototype> textureUniforms = const {},
     Color baseColor = Colors.white,
     double metallicFactor = 0,
     double roughnessFactor = 0.85,
@@ -346,6 +352,7 @@ final class MeshMaterialPrototype {
         uniforms: uniforms,
       ),
       texture: texture,
+      textureUniforms: textureUniforms,
       baseColor: baseColor,
       metallicFactor: metallicFactor,
       roughnessFactor: roughnessFactor,
@@ -356,6 +363,7 @@ final class MeshMaterialPrototype {
   factory MeshMaterialPrototype.filamat({
     required String assetPath,
     MeshTexturePrototype? texture,
+    Map<String, MeshTexturePrototype> textureUniforms = const {},
     Color baseColor = Colors.white,
     double metallicFactor = 0,
     double roughnessFactor = 0.85,
@@ -369,6 +377,7 @@ final class MeshMaterialPrototype {
         uniforms: uniforms,
       ),
       texture: texture,
+      textureUniforms: textureUniforms,
       baseColor: baseColor,
       metallicFactor: metallicFactor,
       roughnessFactor: roughnessFactor,
@@ -382,6 +391,7 @@ final class MeshMaterialPrototype {
   final double roughnessFactor;
   final bool doubleSided;
   final MeshTexturePrototype? texture;
+  final Map<String, MeshTexturePrototype> textureUniforms;
   final MaterialShaderPrototype? shader;
   final String? matAssetPath;
   final String? filamatAssetPath;
@@ -406,6 +416,12 @@ final class MeshMaterialPrototype {
     final texture = this.texture;
     if (texture != null) {
       message['texture'] = texture.toMessage();
+    }
+    if (textureUniforms.isNotEmpty) {
+      message['textureUniforms'] = {
+        for (final MapEntry(:key, :value) in textureUniforms.entries)
+          key: value.toMessage(),
+      };
     }
     final shader = this.shader;
     if (shader != null) {

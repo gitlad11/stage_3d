@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stage_3d/physics/collider_shape.dart';
+import 'package:stage_3d/physics/vector3.dart';
 
 void main() {
   test('BoxShape maps dimensions to the native ABI', () {
@@ -33,5 +34,19 @@ void main() {
     expect(shape.nativeType, 3);
     expect(shape.nativeA, 1.5);
     expect(shape.nativeB, 0.4);
+  });
+
+  test('CompoundShape stores locally positioned child shapes', () {
+    const shape = CompoundShape([
+      PositionedShape(shape: CapsuleShape(halfHeight: 0.65, radius: 0.45)),
+      PositionedShape(
+        shape: BoxShape(halfWidth: 0.3, halfHeight: 0.1, halfDepth: 0.25),
+        position: Vector3(0, -1, 0),
+      ),
+    ]);
+
+    expect(shape.nativeType, 4);
+    expect(shape.nativeA, 2);
+    expect(shape.children.last.position.y, -1);
   });
 }

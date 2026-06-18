@@ -1,3 +1,6 @@
+import 'physics_transform.dart';
+import 'vector3.dart';
+
 /// Base class for collision geometry attached to a rigid body.
 ///
 /// A collider shape is invisible. A renderer may display any visual model while
@@ -129,6 +132,53 @@ final class CylinderShape extends ColliderShape {
 
   @override
   double get nativeB => radius;
+
+  @override
+  double get nativeC => 0;
+}
+
+/// A collider shape placed in a local node coordinate system.
+///
+/// [position] and [rotation] are relative to the owning rigid body transform.
+/// Use this to build compound colliders from multiple simpler shapes.
+final class PositionedShape {
+  /// Creates a locally positioned collider part.
+  const PositionedShape({
+    required this.shape,
+    this.position = Vector3.zero,
+    this.rotation = Quaternion.identity,
+  });
+
+  /// Local collider geometry.
+  final ColliderShape shape;
+
+  /// Local position relative to the owning node/body origin.
+  final Vector3 position;
+
+  /// Local rotation relative to the owning node/body orientation.
+  final Quaternion rotation;
+}
+
+/// A collider built from multiple locally positioned child shapes.
+///
+/// This maps to Jolt's static compound shape on Android. The owning
+/// [RigidBodySettings.transform] remains the node's world transform; each
+/// [PositionedShape] is placed in local coordinates inside that node.
+final class CompoundShape extends ColliderShape {
+  /// Creates a compound collider from at least one child shape.
+  const CompoundShape(this.children);
+
+  /// Child shapes in local node coordinates.
+  final List<PositionedShape> children;
+
+  @override
+  int get nativeType => 4;
+
+  @override
+  double get nativeA => children.length.toDouble();
+
+  @override
+  double get nativeB => 0;
 
   @override
   double get nativeC => 0;

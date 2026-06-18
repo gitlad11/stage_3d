@@ -1,16 +1,22 @@
 import 'package:flutter/foundation.dart';
 
 import '../jolt_physics.dart';
-import 'physics_entity.dart';
+import 'physics_body_component.dart';
+import 'stage_object.dart';
+import 'stage_scene.dart';
 
 final class PhysicsScene extends ChangeNotifier {
   PhysicsScene({
     PhysicsWorld? world,
-    ColliderShape modelShape = const CapsuleShape(
-      halfHeight: 0.65,
-      radius: 0.45,
-    ),
+    ColliderShape modelShape = const CompoundShape([
+      PositionedShape(shape: CapsuleShape(halfHeight: 0.65, radius: 0.45)),
+      PositionedShape(
+        shape: BoxShape(halfWidth: 0.32, halfHeight: 0.14, halfDepth: 0.28),
+        position: Vector3(0, -1.05, 0),
+      ),
+    ]),
   }) : _world = world ?? createPhysicsWorld() {
+    stage = StageScene();
     floor = _world.createBody(
       const RigidBodySettings(
         shape: BoxShape(halfWidth: 8, halfHeight: 0.25, halfDepth: 8),
@@ -19,25 +25,29 @@ final class PhysicsScene extends ChangeNotifier {
       ),
     );
     const initialTransform = PhysicsTransform(position: Vector3(0, 5.5, 0));
-    model = PhysicsEntity(
-      _world,
-      body: _world.createBody(
-        RigidBodySettings(
+    modelObject = stage.add(
+      StageObject.node('fox', transform: initialTransform),
+    );
+    model = modelObject.add(
+      PhysicsBodyComponent(
+        _world,
+        settings: RigidBodySettings(
           shape: modelShape,
           motionType: MotionType.dynamic,
           transform: initialTransform,
-          angularVelocity: const Vector3(0.7, 1.3, 0.4),
+          angularVelocity: Vector3.zero,
           friction: 0.65,
           restitution: 0.35,
         ),
       ),
-      initialTransform: initialTransform,
     );
   }
 
   final PhysicsWorld _world;
+  late final StageScene stage;
   late final RigidBody floor;
-  late final PhysicsEntity model;
+  late final StageObject modelObject;
+  late final PhysicsBodyComponent model;
   bool _paused = false;
   String _touchStatus = 'Tap the fox collider';
 
@@ -54,6 +64,7 @@ final class PhysicsScene extends ChangeNotifier {
       return;
     }
     _world.step(deltaSeconds);
+    stage.update(deltaSeconds);
     notifyListeners();
   }
 
@@ -93,6 +104,7 @@ final class PhysicsScene extends ChangeNotifier {
 
   @override
   void dispose() {
+    stage.dispose();
     _world.dispose();
     super.dispose();
   }

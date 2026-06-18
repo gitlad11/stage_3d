@@ -20,6 +20,7 @@ import com.google.android.filament.gltfio.FilamentAsset
 import com.google.android.filament.gltfio.FilamentInstance
 import com.google.android.filament.gltfio.ResourceLoader
 import com.google.android.filament.gltfio.UbershaderProvider
+import com.google.android.filament.utils.Manipulator
 import com.google.android.filament.utils.ModelViewer
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
@@ -37,7 +38,12 @@ class FilamentPlatformView(
     viewId: Int,
 ) : PlatformView, MethodChannel.MethodCallHandler, Choreographer.FrameCallback {
     private val textureView = TextureView(context)
-    private val modelViewer = ModelViewer(textureView)
+    private val cameraManipulator =
+        Manipulator.Builder()
+            .targetPosition(0.0f, 0.0f, 0.0f)
+            .orbitHomePosition(0.0f, 0.0f, 4.0f)
+            .build(Manipulator.Mode.ORBIT)
+    private val modelViewer = ModelViewer(textureView, manipulator = cameraManipulator)
     private val channel = MethodChannel(messenger, "filament_view_$viewId")
     private val choreographer = Choreographer.getInstance()
     private val startNanos = System.nanoTime()
@@ -49,12 +55,13 @@ class FilamentPlatformView(
     private val assets = mutableMapOf<Int, NativeModelAsset>()
     private val instances = mutableMapOf<Int, NativeModelInstance>()
     private val meshes = mutableMapOf<Int, NativeTexturedMesh>()
+    private var currentSkybox: Skybox? = null
+    private var environmentReflectionIntensity = 0.9f
 
     init {
         textureView.setOnTouchListener(modelViewer)
         channel.setMethodCallHandler(this)
-        modelViewer.scene.skybox =
-            Skybox.Builder().color(0.16f, 0.48f, 0.78f, 1.0f).build(modelViewer.engine)
+        setSkyboxColor(0.16f, 0.48f, 0.78f, 1.0f)
         modelViewer.scene.removeEntity(modelViewer.light)
         choreographer.postFrameCallback(this)
     }
@@ -65,6 +72,18 @@ class FilamentPlatformView(
         when (call.method) {
             "resetView" -> {
                 modelViewer.resetToDefaultState()
+                result.success(null)
+            }
+            "orbitCamera" -> {
+                orbitCamera(call)
+                result.success(null)
+            }
+            "moveCamera" -> {
+                moveCamera(call)
+                result.success(null)
+            }
+            "setEnvironment" -> {
+                setEnvironment(call)
                 result.success(null)
             }
             "loadModelAsset" -> {
@@ -181,6 +200,8 @@ class FilamentPlatformView(
         resourceLoader.destroy()
         materialProvider.destroyMaterials()
         materialProvider.destroy()
+        currentSkybox?.let(modelViewer.engine::destroySkybox)
+        currentSkybox = null
         assetLoader.destroy()
         modelViewer.destroy()
     }
@@ -188,7 +209,8 @@ class FilamentPlatformView(
     private fun loadModelAsset(context: Context, call: MethodCall) {
         val assetId = call.int("assetId")
         if (assets.containsKey(assetId)) return
-        val bytes = context.assets.open(call.string("assetPath")).use { it.readBytes() }
+        val assetPath = call.string("assetPath")
+        val bytes = context.assets.open(assetPath).use { it.readBytes() }
         val asset = assetLoader.createAsset(ByteBuffer.wrap(bytes)) ?: return
         resourceLoader.loadResources(asset)
         assets[assetId] =
@@ -196,11 +218,40 @@ class FilamentPlatformView(
                 asset = asset,
                 normalizedScale = call.float("normalizedScale"),
                 animationIndex = call.nullableInt("animationIndex"),
+                verticalAnchor = NativeModelVerticalAnchor.from(call.string("verticalAnchor")),
             )
     }
 
+    private fun orbitCamera(call: MethodCall) {
+        val centerX = textureView.width / 2
+        val centerY = textureView.height / 2
+        if (centerX <= 0 || centerY <= 0) return
+        val deltaX = (call.float("deltaYaw") * 180.0f).toInt()
+        val deltaY = (call.float("deltaPitch") * 180.0f).toInt()
+        cameraManipulator.grabBegin(centerX, centerY, false)
+        cameraManipulator.grabUpdate(centerX + deltaX, centerY + deltaY)
+        cameraManipulator.grabEnd()
+    }
+
+    private fun moveCamera(call: MethodCall) {
+        val centerX = textureView.width / 2
+        val centerY = textureView.height / 2
+        if (centerX <= 0 || centerY <= 0) return
+        val right = call.float("deltaX").toInt()
+        val forward = call.float("deltaY")
+        if (right != 0) {
+            cameraManipulator.grabBegin(centerX, centerY, true)
+            cameraManipulator.grabUpdate(centerX + right, centerY)
+            cameraManipulator.grabEnd()
+        }
+        if (forward != 0.0f) {
+            cameraManipulator.scroll(centerX, centerY, forward)
+        }
+    }
+
     private fun createModelInstance(call: MethodCall) {
-        val asset = assets[call.int("assetId")] ?: return
+        val assetId = call.int("assetId")
+        val asset = assets[assetId] ?: return
         val instanceId = call.int("instanceId")
         destroyModelInstance(instanceId)
         val instance = assetLoader.createInstance(asset.asset) ?: return
@@ -234,6 +285,13 @@ class FilamentPlatformView(
         val maxExtent = maxOf(extent[0], extent[1], extent[2]) * 2.0f
         val scale = model.asset.normalizedScale * 2.0f / maxExtent
         val center = box.center
+        val anchor =
+            when (model.asset.verticalAnchor) {
+                NativeModelVerticalAnchor.ORIGIN -> floatArrayOf(0.0f, 0.0f, 0.0f)
+                NativeModelVerticalAnchor.CENTER -> center
+                NativeModelVerticalAnchor.BOTTOM ->
+                    floatArrayOf(center[0], center[1] - extent[1], center[2])
+            }
         val qx = call.float("qx")
         val qy = call.float("qy")
         val qz = call.float("qz")
@@ -250,9 +308,9 @@ class FilamentPlatformView(
         val targetX = call.float("x") * 0.12f
         val targetY = (call.float("y") - 0.65f) * 0.12f - 0.65f
         val targetZ = -4.0f - call.float("z") * 0.12f
-        val tx = targetX - scale * (m00 * center[0] + m01 * center[1] + m02 * center[2])
-        val ty = targetY - scale * (m10 * center[0] + m11 * center[1] + m12 * center[2])
-        val tz = targetZ - scale * (m20 * center[0] + m21 * center[1] + m22 * center[2])
+        val tx = targetX - scale * (m00 * anchor[0] + m01 * anchor[1] + m02 * anchor[2])
+        val ty = targetY - scale * (m10 * anchor[0] + m11 * anchor[1] + m12 * anchor[2])
+        val tz = targetZ - scale * (m20 * anchor[0] + m21 * anchor[1] + m22 * anchor[2])
         val transform =
             floatArrayOf(
                 scale * m00, scale * m10, scale * m20, 0.0f,
@@ -291,7 +349,7 @@ class FilamentPlatformView(
         val customMaterial = mesh.customMaterial ?: return
         customMaterial.materialInstance?.let(modelViewer.engine::destroyMaterialInstance)
         customMaterial.material?.let(modelViewer.engine::destroyMaterial)
-        customMaterial.texture?.let(modelViewer.engine::destroyTexture)
+        customMaterial.textures.forEach(modelViewer.engine::destroyTexture)
     }
 
     private fun applyCustomMeshMaterial(
@@ -308,6 +366,7 @@ class FilamentPlatformView(
             Material.Builder().payload(materialBuffer, filamat.size).build(modelViewer.engine)
         val materialInstance = filamentMaterial.createInstance()
         val materialTexture = createFilamentTexture(createTexturePng(texture))
+        val materialTextures = mutableListOf(materialTexture)
         val sampler =
             TextureSampler(
                 TextureSampler.MinFilter.LINEAR,
@@ -316,9 +375,18 @@ class FilamentPlatformView(
             )
 
         materialInstance.setParameter("albedo", materialTexture, sampler)
+        val textureUniforms = material["textureUniforms"] as? Map<*, *> ?: emptyMap<Any, Any>()
+        for ((name, textureMessage) in textureUniforms) {
+            val uniformName = name as? String ?: continue
+            val uniformTexture = textureMessage as? Map<String, Any> ?: continue
+            val filamentTexture = createFilamentTexture(createTexturePng(uniformTexture))
+            materialTextures += filamentTexture
+            materialInstance.setParameter(uniformName, filamentTexture, sampler)
+        }
         materialInstance.setParameter("roughness", number(material["roughnessFactor"]).toFloat())
         materialInstance.setParameter("metallic", number(material["metallicFactor"]).toFloat())
         materialInstance.setParameter("tint", 1.0f, 1.0f, 1.0f, 1.0f)
+        materialInstance.setParameter("reflectance", environmentReflectionIntensity)
         materialInstance.setParameter("windStrength", 0.0f)
         materialInstance.setParameter("windScale", 1.0f)
         applyShaderUniforms(materialInstance, material["shader"] as? Map<*, *>)
@@ -336,8 +404,33 @@ class FilamentPlatformView(
         return NativeMeshMaterial(
             material = filamentMaterial,
             materialInstance = materialInstance,
-            texture = materialTexture,
+            textures = materialTextures,
         )
+    }
+
+    private fun setEnvironment(call: MethodCall) {
+        setSkyboxColor(
+            call.float("skyR", 0.16f),
+            call.float("skyG", 0.48f),
+            call.float("skyB", 0.78f),
+            call.float("skyA", 1.0f),
+        )
+        environmentReflectionIntensity = call.float("reflectionIntensity", 0.9f)
+        updateMeshReflectance(environmentReflectionIntensity)
+    }
+
+    private fun setSkyboxColor(r: Float, g: Float, b: Float, a: Float) {
+        val previous = currentSkybox
+        val skybox = Skybox.Builder().color(r, g, b, a).build(modelViewer.engine)
+        modelViewer.scene.skybox = skybox
+        currentSkybox = skybox
+        previous?.let(modelViewer.engine::destroySkybox)
+    }
+
+    private fun updateMeshReflectance(reflectance: Float) {
+        for (mesh in meshes.values) {
+            mesh.customMaterial?.materialInstance?.setParameter("reflectance", reflectance)
+        }
     }
 
     private fun applyShaderUniforms(
@@ -716,7 +809,24 @@ class FilamentPlatformView(
         val asset: FilamentAsset,
         val normalizedScale: Float,
         val animationIndex: Int?,
+        val verticalAnchor: NativeModelVerticalAnchor,
     )
+
+    private enum class NativeModelVerticalAnchor {
+        ORIGIN,
+        CENTER,
+        BOTTOM,
+        ;
+
+        companion object {
+            fun from(value: String): NativeModelVerticalAnchor =
+                when (value.lowercase()) {
+                    "origin" -> ORIGIN
+                    "bottom" -> BOTTOM
+                    else -> CENTER
+                }
+        }
+    }
 
     private data class NativeModelInstance(
         val asset: NativeModelAsset,
@@ -732,7 +842,7 @@ class FilamentPlatformView(
     private data class NativeMeshMaterial(
         val material: Material?,
         val materialInstance: MaterialInstance?,
-        val texture: Texture?,
+        val textures: List<Texture>,
     )
 
     private data class NativeAnimationPlayback(

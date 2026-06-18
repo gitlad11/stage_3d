@@ -25,6 +25,10 @@ material {
         },
         {
             type : float,
+            name : reflectance
+        },
+        {
+            type : float,
             name : windStrength
         },
         {
@@ -52,5 +56,6 @@ fragment {
         material.baseColor = base;
         material.roughness = materialParams.roughness;
         material.metallic = materialParams.metallic;
+        material.reflectance = materialParams.reflectance;
     }
 }

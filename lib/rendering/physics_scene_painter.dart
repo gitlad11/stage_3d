@@ -9,12 +9,12 @@ final class PhysicsScenePainter extends CustomPainter {
   PhysicsScenePainter({
     required this.cube,
     required this.camera,
-    required this.meshPrototype,
+    required this.meshPrototypes,
   });
 
   final PhysicsTransform cube;
   final OrbitCamera camera;
-  final TexturedMeshPrototype meshPrototype;
+  final List<TexturedMeshPrototype> meshPrototypes;
 
   static const _edges = [
     [0, 1],
@@ -118,13 +118,15 @@ final class PhysicsScenePainter extends CustomPainter {
   }
 
   void _drawTexturedMesh(Canvas canvas, Size size) {
-    drawTexturedMeshPrototype(
-      canvas,
-      size,
-      mesh: meshPrototype,
-      camera: camera,
-      origin: const Vector3(-2.7, 0.04, 0.3),
-    );
+    for (final mesh in meshPrototypes) {
+      drawTexturedMeshPrototype(
+        canvas,
+        size,
+        mesh: mesh,
+        camera: camera,
+        origin: Vector3.zero,
+      );
+    }
   }
 
   void _drawWorldLine(
@@ -178,5 +180,5 @@ final class PhysicsScenePainter extends CustomPainter {
   bool shouldRepaint(PhysicsScenePainter oldDelegate) =>
       oldDelegate.cube != cube ||
       oldDelegate.camera != camera ||
-      oldDelegate.meshPrototype != meshPrototype;
+      oldDelegate.meshPrototypes != meshPrototypes;
 }
