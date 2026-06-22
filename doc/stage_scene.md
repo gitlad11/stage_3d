@@ -44,6 +44,10 @@ Component lifecycle:
 - `update(deltaSeconds)` each scene tick;
 - `onDetach()` when removed or disposed.
 
+Call `StageObject.dispose()` or `StageScene.dispose()` when objects leave the
+screen. This gives components a chance to release native resources, such as a
+Filament model instance or a Jolt rigid body.
+
 ## Node-Style Objects
 
 `StageObject.node` creates a Godot-like node: the object has one world
@@ -86,6 +90,11 @@ final fox = StageObject.node(
 The node transform is the object's world position. `PositionedShape` and
 `PositionedModel` use local coordinates inside that object, so several physical
 and visual parts can move as one object.
+
+When this node is removed with `scene.remove(fox)` or the whole scene is closed
+with `scene.dispose()`, attached components receive `onDetach()`. The built-in
+physics and render model components use that hook to destroy their Jolt body or
+Filament model instance.
 
 ## Why This Layer Exists
 

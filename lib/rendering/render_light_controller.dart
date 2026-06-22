@@ -4,7 +4,7 @@ import '../physics/vector3.dart';
 import 'light.dart';
 import 'render_scene_bridge.dart';
 
-/// Manages lights in the native Filament demo viewport.
+/// Manages lights in the native Filament viewport.
 ///
 /// The API deliberately lives outside [PhysicsWorld]. Rendering and physics are
 /// independent systems, so applications may attach a light to a rigid body,

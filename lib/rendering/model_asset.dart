@@ -2,7 +2,8 @@ import '../physics/physics_transform.dart';
 
 /// Reusable description of a visual model available to the renderer.
 ///
-/// Filament currently loads binary glTF (`.glb`) files from Android assets.
+/// Filament currently loads binary glTF (`.glb`) files from Android or Flutter
+/// assets.
 /// Convert FBX, OBJ, and Blender files to GLB before packaging them.
 final class ModelAsset {
   /// Creates a model asset prototype.
@@ -13,7 +14,7 @@ final class ModelAsset {
     this.verticalAnchor = ModelVerticalAnchor.center,
   }) : assert(normalizedScale > 0);
 
-  /// Android asset path, for example `models/Fox.glb`.
+  /// Asset path, for example `assets/models/Fox.glb` from a Flutter app.
   final String assetPath;
 
   /// Scale applied after fitting the model inside a normalized unit cube.

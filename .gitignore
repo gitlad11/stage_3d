@@ -44,9 +44,17 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /android/.gradle/
+/android/build/
 
 # Stage 3D builds Jolt from the vendored core sources. Upstream demos, assets,
 # documentation, and test suites are intentionally excluded from this repo.
+/android/src/main/cpp/third_party/JoltPhysics/Assets/
+/android/src/main/cpp/third_party/JoltPhysics/Docs/
+/android/src/main/cpp/third_party/JoltPhysics/HelloWorld/
+/android/src/main/cpp/third_party/JoltPhysics/PerformanceTest/
+/android/src/main/cpp/third_party/JoltPhysics/Samples/
+/android/src/main/cpp/third_party/JoltPhysics/TestFramework/
+/android/src/main/cpp/third_party/JoltPhysics/UnitTests/
 /android/app/src/main/cpp/third_party/JoltPhysics/Assets/
 /android/app/src/main/cpp/third_party/JoltPhysics/Docs/
 /android/app/src/main/cpp/third_party/JoltPhysics/HelloWorld/

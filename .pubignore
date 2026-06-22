@@ -3,12 +3,28 @@
 build/
 docs/
 *.iml
+android/.gradle/
+android/.kotlin/
+android/app/
+ios/
+linux/
+macos/
+web/
+windows/
+lib/app.dart
+lib/main.dart
+lib/ui/
+lib/scene/physics_scene.dart
+lib/rendering/physics_debug_overlay.dart
+test/physics_scene_test.dart
+test/virtual_joystick_test.dart
+test/widget_test.dart
 
 # Jolt source required by the Android build lives in Build/ and Jolt/.
-android/app/src/main/cpp/third_party/JoltPhysics/Assets/
-android/app/src/main/cpp/third_party/JoltPhysics/Docs/
-android/app/src/main/cpp/third_party/JoltPhysics/HelloWorld/
-android/app/src/main/cpp/third_party/JoltPhysics/PerformanceTest/
-android/app/src/main/cpp/third_party/JoltPhysics/Samples/
-android/app/src/main/cpp/third_party/JoltPhysics/TestFramework/
-android/app/src/main/cpp/third_party/JoltPhysics/UnitTests/
+android/src/main/cpp/third_party/JoltPhysics/Assets/
+android/src/main/cpp/third_party/JoltPhysics/Docs/
+android/src/main/cpp/third_party/JoltPhysics/HelloWorld/
+android/src/main/cpp/third_party/JoltPhysics/PerformanceTest/
+android/src/main/cpp/third_party/JoltPhysics/Samples/
+android/src/main/cpp/third_party/JoltPhysics/TestFramework/
+android/src/main/cpp/third_party/JoltPhysics/UnitTests/

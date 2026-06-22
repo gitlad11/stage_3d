@@ -11,7 +11,7 @@ import 'render_model_controller.dart';
 import 'render_scene_bridge.dart';
 import 'textured_mesh_prototype.dart';
 
-/// Controls commands sent to the native Filament demo viewport.
+/// Controls commands sent to the native Filament viewport.
 ///
 /// This renderer bridge is separate from the reusable physics API.
 final class FilamentViewportController {
@@ -42,7 +42,7 @@ final class FilamentViewportController {
   }
 }
 
-/// Android Filament viewport used by the example application.
+/// Android Filament viewport registered by the Stage 3D plugin.
 ///
 /// On non-Android platforms it falls back to a Flutter Canvas preview.
 class FilamentViewport extends StatefulWidget {

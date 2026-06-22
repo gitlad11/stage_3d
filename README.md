@@ -1,11 +1,3 @@
-# rtmpstreamer
-
-Modern Flutter RTMP streaming plugin for Android and iOS.
-
-Support & Contact: [efimovi420@gmail.com](mailto:efimovi420@gmail.com)
-
-If this package helps your project, please consider starring the repository.
-
 # Stage 3D
 
 **Stage 3D is a Flutter 3D Gateway API for building interactive 3D experiences
@@ -20,6 +12,24 @@ animation, and spatial query APIs independently inside any Flutter UI.
 Stage 3D currently combines
 [Jolt Physics](https://github.com/jrouwe/JoltPhysics) `v5.5.0` with
 [Filament](https://github.com/google/filament) rendering on Android.
+
+Support & Contact: [efimovi420@gmail.com](mailto:efimovi420@gmail.com)
+
+If Stage 3D helps your project, please consider starring the repository.
+
+## Native Backends
+
+Stage 3D ships with native Android integrations for two separate systems:
+
+- **Jolt Physics** through a C++ `dart:ffi` adapter for simulation, rigid
+  bodies, collider shapes, compound shapes, impulses, kinematic motion, and ray
+  casts.
+- **Filament** through an Android Platform View for `.glb` rendering, model
+  instances, animations, lights, environment settings, procedural meshes, and
+  shader materials.
+
+The APIs are intentionally separate. You can use only Jolt, only Filament, the
+included `StageScene` component runtime, or your own scene layer.
 
 ## Features
 
@@ -48,9 +58,10 @@ Stage 3D currently combines
 
 ## Project Status
 
-Stage 3D is an early prototype. The native Jolt and Filament backend currently
-targets Android. Other Flutter targets use a lightweight preview physics
-backend for tests and UI iteration.
+Stage 3D is an experimental alpha. The native Jolt and Filament backend
+currently targets Android. Other Flutter targets use a lightweight preview
+physics backend for tests and UI iteration. Public APIs may change before a
+stable `1.0.0` release.
 
 ## Quick Start
 
@@ -96,6 +107,121 @@ world.destroyBody(ball);
 world.destroyBody(floor);
 world.dispose();
 ```
+
+## Scene Node Example
+
+Use `StageObject.node` when one object needs a shared transform for rendering,
+physics, input, scripts, or other behavior. This is similar to a Godot node with
+components attached to it.
+
+The components are regular Dart objects. Applications can attach
+`PhysicsBodyComponent`, `RenderModelComponent`, `PositionedModel`, or custom
+`StageComponent` subclasses to their own scene objects instead of using the
+included demo scene.
+
+```dart
+import 'package:stage_3d/jolt_physics.dart';
+import 'package:stage_3d/jolt_rendering.dart';
+
+final world = createPhysicsWorld();
+final scene = StageScene();
+final models = RenderModelController();
+
+final foxAsset = models.loadAsset(
+  const ModelAsset(assetPath: 'models/Fox.glb', animationIndex: 0),
+);
+
+final foxTransform = const PhysicsTransform(
+  position: Vector3(0, 5, 0),
+);
+
+final fox = scene.add(
+  StageObject.node(
+    'fox',
+    transform: foxTransform,
+    components: [
+      PhysicsBodyComponent(
+        world,
+        settings: const RigidBodySettings(
+          shape: CompoundShape([
+            PositionedShape(
+              shape: CapsuleShape(halfHeight: 0.65, radius: 0.45),
+            ),
+            PositionedShape(
+              shape: BoxShape(
+                halfWidth: 0.32,
+                halfHeight: 0.14,
+                halfDepth: 0.28,
+              ),
+              position: Vector3(0, -1.05, 0),
+            ),
+          ]),
+          motionType: MotionType.dynamic,
+          transform: foxTransform,
+        ),
+      ),
+      PositionedModel(
+        asset: foxAsset,
+        position: Vector3(0, 0.2, 0),
+      ).toComponent(models),
+    ],
+  ),
+);
+
+void tick(double deltaSeconds) {
+  world.step(deltaSeconds);
+  scene.update(deltaSeconds);
+}
+```
+
+`CompoundShape` groups multiple local `PositionedShape` colliders into one Jolt
+body. `PositionedModel` adds a local visual offset to the same node, so the
+model and collider move together while still being tuned independently.
+
+## Resource Lifetime
+
+Stage 3D uses native C++ resources through Jolt and Filament. Dart garbage
+collection does not automatically free every native renderer or physics object,
+so applications should keep ownership explicit.
+
+Recommended lifecycle:
+
+```dart
+final world = createPhysicsWorld();
+final scene = StageScene();
+final models = RenderModelController();
+final lights = RenderLightController();
+
+final asset = models.loadAsset(
+  const ModelAsset(assetPath: 'models/Fox.glb'),
+);
+final instance = models.createInstance(
+  asset,
+  transform: const PhysicsTransform(position: Vector3(0, 0, 0)),
+);
+final light = lights.createLight(
+  const DirectionalLight(direction: Vector3(0, -1, -0.25)),
+);
+
+// When removing individual objects created manually:
+models.destroyInstance(instance);
+lights.destroyLight(light);
+
+// When closing the scene/screen:
+scene.dispose();
+world.dispose();
+```
+
+If a model is attached through `RenderModelComponent`, disposing its
+`StageObject` or the whole `StageScene` destroys that visible instance for you.
+The bundled `FilamentViewport` also releases native Filament assets, procedural
+meshes, lights, materials, textures, skybox, and renderer objects when the
+Flutter platform view is disposed.
+
+For long-running apps, avoid repeatedly creating new model instances, lights, or
+procedural meshes without destroying the old ones. Reuse loaded assets and
+instances when possible, and unload whole screens/scenes by calling
+`StageScene.dispose()` and `PhysicsWorld.dispose()`.
 
 ## Documentation
 
@@ -168,9 +294,9 @@ The current public shape API supports `BoxShape`, `CapsuleShape`,
 ## Native Files
 
 - Jolt C++ adapter:
-  [`android/app/src/main/cpp/jolt_ffi.cpp`](android/app/src/main/cpp/jolt_ffi.cpp)
+  [`android/src/main/cpp/jolt_ffi.cpp`](android/src/main/cpp/jolt_ffi.cpp)
 - Filament Platform View:
-  [`android/app/src/main/kotlin/com/example/jolt_physics_dart/FilamentPlatformView.kt`](android/app/src/main/kotlin/com/example/jolt_physics_dart/FilamentPlatformView.kt)
+  [`android/src/main/kotlin/com/stage3d/stage_3d/FilamentPlatformView.kt`](android/src/main/kotlin/com/stage3d/stage_3d/FilamentPlatformView.kt)
 
 ## Test Model
 

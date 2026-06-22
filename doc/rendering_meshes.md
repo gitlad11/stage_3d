@@ -107,9 +107,9 @@ grass_wind.mat -> matc -> grass_wind.filamat
 
 The demo includes:
 
-- `android/app/src/main/assets/materials/grass_wind.mat`
-- `android/app/src/main/assets/materials/grass_wind.shader`
-- `android/app/src/main/assets/materials/grass_wind.filamat`
+- `android/src/main/assets/materials/grass_wind.mat`
+- `android/src/main/assets/materials/grass_wind.shader`
+- `android/src/main/assets/materials/grass_wind.filamat`
 
 Use it from Dart:
 
@@ -234,7 +234,7 @@ Limitations:
 
 The Android Gradle project has a `compileFilamentMaterials` task. It downloads
 the matching Filament `matc` compiler from Maven for the current host, then
-scans `android/app/src/main/assets/materials` for `.mat` and `.shader` files and
+scans `android/src/main/assets/materials` for `.mat` and `.shader` files and
 writes matching `.filamat` files before Android asset merging.
 
 ```powershell
