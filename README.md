@@ -1,8 +1,8 @@
 # Stage 3D
 
-**Stage 3D is a Flutter 3D Gateway API for building interactive 3D experiences
-with native rendering, physics, assets, animation, lighting, scene components,
-and spatial queries.**
+**Stage 3D is a Flutter 3D plugin and Gateway API powered by Google Filament
+rendering and Jolt Physics for building interactive 3D experiences with GLB
+models, physics, animation, lighting, scene components, and spatial queries.**
 
 Stage 3D connects Flutter apps to native 3D capabilities through a reusable
 gateway API. Use the component-friendly `StageScene` runtime, build your own
@@ -16,6 +16,10 @@ Stage 3D currently combines
 Support & Contact: [efimovi420@gmail.com](mailto:efimovi420@gmail.com)
 
 If Stage 3D helps your project, please consider starring the repository.
+
+## Preview
+
+![Stage 3D Android scene preview](doc/images/stage3d_scene.png)
 
 ## Native Backends
 

@@ -1,13 +1,13 @@
 name: stage_3d
-description: "Flutter 3D Gateway API for native rendering, physics, assets, animation, lighting, scene components, and spatial queries."
+description: "Flutter 3D plugin with Google Filament rendering and Jolt Physics for GLB models, scene nodes, lighting, animation, and spatial queries."
 version: 0.1.0-alpha.1
 repository: https://github.com/gitlad11/stage_3d
 issue_tracker: https://github.com/gitlad11/stage_3d/issues
 topics:
   - flutter
   - 3d
+  - jolt
   - physics
-  - rendering
   - filament
 
 environment:

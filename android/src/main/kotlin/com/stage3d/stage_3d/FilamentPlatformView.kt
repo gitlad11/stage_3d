@@ -307,7 +307,7 @@ class FilamentPlatformView(
         val m21 = 2 * (qy * qz + qx * qw)
         val m22 = 1 - 2 * (qx * qx + qy * qy)
         val targetX = call.float("x") * 0.12f
-        val targetY = (call.float("y") - 0.65f) * 0.12f - 0.65f
+        val targetY = (call.float("y") - 0.65f) * 0.12f - 0.15f
         val targetZ = -4.0f - call.float("z") * 0.12f
         val tx = targetX - scale * (m00 * anchor[0] + m01 * anchor[1] + m02 * anchor[2])
         val ty = targetY - scale * (m10 * anchor[0] + m11 * anchor[1] + m12 * anchor[2])

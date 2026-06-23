@@ -80,15 +80,18 @@ class _PhysicsScenePageState extends State<PhysicsScenePage>
       ),
     );
     _modelController = RenderModelController();
-    _groundMeshPrototypes = [_createJoltFloorVisual()];
+    _groundMeshPrototypes = [_createJoltFloorBlockVisual()];
     final foxAsset = _modelController.loadAsset(
-      const ModelAsset(assetPath: 'models/Fox.glb', animationIndex: 0),
+      const ModelAsset(
+        assetPath: 'models/Fox.glb',
+        verticalAnchor: ModelVerticalAnchor.bottom,
+      ),
     );
     _foxModel = _scene.modelObject.add(
       RenderModelComponent(
         controller: _modelController,
         asset: foxAsset,
-        visualOffset: const Vector3(0, 0.2, 0),
+        visualOffset: const Vector3(0, 1.3, 0),
       ),
     );
     _ticker = createTicker(_onTick)..start();
@@ -279,7 +282,7 @@ class _PhysicsScenePageState extends State<PhysicsScenePage>
   }
 }
 
-TexturedMeshPrototype _createJoltFloorVisual() {
+TexturedMeshPrototype _createJoltFloorBlockVisual() {
   const texture = MeshTexturePrototype.asset(
     assetPath: 'textures/grass_pbr_atlas.png',
     sourceRegion: MeshTextureRegion(
@@ -291,16 +294,116 @@ TexturedMeshPrototype _createJoltFloorVisual() {
     repeatU: 6,
     repeatV: 6,
   );
-  return TexturedMeshPrototype.plane(
-    width: 16,
-    depth: 16,
-    texture: texture,
-    material: MeshMaterialPrototype.checker(
-      texture,
-      roughnessFactor: 0.9,
-      doubleSided: true,
-    ),
+  const halfWidth = 8.0;
+  const halfDepth = 8.0;
+  const top = 0.0;
+  const bottom = -2.0;
+  final material = MeshMaterialPrototype.checker(
+    texture,
+    roughnessFactor: 0.9,
+    doubleSided: true,
   );
+  final vertices = <MeshVertex>[
+    ..._quad(
+      normal: const Vector3(0, 1, 0),
+      a: const Vector3(-halfWidth, top, -halfDepth),
+      b: const Vector3(halfWidth, top, -halfDepth),
+      c: const Vector3(halfWidth, top, halfDepth),
+      d: const Vector3(-halfWidth, top, halfDepth),
+    ),
+    ..._quad(
+      normal: const Vector3(0, -1, 0),
+      a: const Vector3(-halfWidth, bottom, halfDepth),
+      b: const Vector3(halfWidth, bottom, halfDepth),
+      c: const Vector3(halfWidth, bottom, -halfDepth),
+      d: const Vector3(-halfWidth, bottom, -halfDepth),
+    ),
+    ..._quad(
+      normal: const Vector3(0, 0, 1),
+      a: const Vector3(-halfWidth, bottom, halfDepth),
+      b: const Vector3(-halfWidth, top, halfDepth),
+      c: const Vector3(halfWidth, top, halfDepth),
+      d: const Vector3(halfWidth, bottom, halfDepth),
+    ),
+    ..._quad(
+      normal: const Vector3(0, 0, -1),
+      a: const Vector3(halfWidth, bottom, -halfDepth),
+      b: const Vector3(halfWidth, top, -halfDepth),
+      c: const Vector3(-halfWidth, top, -halfDepth),
+      d: const Vector3(-halfWidth, bottom, -halfDepth),
+    ),
+    ..._quad(
+      normal: const Vector3(1, 0, 0),
+      a: const Vector3(halfWidth, bottom, halfDepth),
+      b: const Vector3(halfWidth, top, halfDepth),
+      c: const Vector3(halfWidth, top, -halfDepth),
+      d: const Vector3(halfWidth, bottom, -halfDepth),
+    ),
+    ..._quad(
+      normal: const Vector3(-1, 0, 0),
+      a: const Vector3(-halfWidth, bottom, -halfDepth),
+      b: const Vector3(-halfWidth, top, -halfDepth),
+      c: const Vector3(-halfWidth, top, halfDepth),
+      d: const Vector3(-halfWidth, bottom, halfDepth),
+    ),
+  ];
+  return TexturedMeshPrototype(
+    vertices: vertices,
+    indices: const [
+      0,
+      1,
+      2,
+      0,
+      2,
+      3,
+      4,
+      5,
+      6,
+      4,
+      6,
+      7,
+      8,
+      9,
+      10,
+      8,
+      10,
+      11,
+      12,
+      13,
+      14,
+      12,
+      14,
+      15,
+      16,
+      17,
+      18,
+      16,
+      18,
+      19,
+      20,
+      21,
+      22,
+      20,
+      22,
+      23,
+    ],
+    material: material,
+  );
+}
+
+List<MeshVertex> _quad({
+  required Vector3 normal,
+  required Vector3 a,
+  required Vector3 b,
+  required Vector3 c,
+  required Vector3 d,
+}) {
+  return [
+    MeshVertex(position: a, normal: normal, uv: Offset.zero),
+    MeshVertex(position: b, normal: normal, uv: const Offset(6, 0)),
+    MeshVertex(position: c, normal: normal, uv: const Offset(6, 6)),
+    MeshVertex(position: d, normal: normal, uv: const Offset(0, 6)),
+  ];
 }
 
 class _SceneHeader extends StatelessWidget {
