@@ -68,6 +68,22 @@ void main() {
       expect(bridge.events, ['setEnvironment', 'setEnvironment']);
     },
   );
+
+  test('FilamentViewportController sends camera presets through bridge', () {
+    final bridge = _RecordingBridge();
+    final viewport = FilamentViewportController()..attachBridge(bridge);
+
+    viewport.setCamera(
+      const StageCamera.orbit(
+        target: Vector3(0, 1, 0),
+        yaw: 0.8,
+        pitch: 0.25,
+        distance: 6,
+      ),
+    );
+
+    expect(bridge.events, ['setCamera', 'setCamera']);
+  });
 }
 
 final class _RecordingBridge implements RenderSceneBridge {
@@ -76,6 +92,11 @@ final class _RecordingBridge implements RenderSceneBridge {
   @override
   Future<void> resetView() async {
     events.add('resetView');
+  }
+
+  @override
+  Future<void> setCamera(StageCamera camera) async {
+    events.add('setCamera');
   }
 
   @override

@@ -21,4 +21,11 @@ final class Vector3 {
   /// Returns a copy translated by the supplied component offsets.
   Vector3 translate(double dx, double dy, double dz) =>
       Vector3(x + dx, y + dy, z + dz);
+
+  @override
+  bool operator ==(Object other) =>
+      other is Vector3 && other.x == x && other.y == y && other.z == z;
+
+  @override
+  int get hashCode => Object.hash(x, y, z);
 }

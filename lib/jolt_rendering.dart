@@ -13,6 +13,7 @@ export 'rendering/render_environment_controller.dart';
 export 'rendering/render_light_controller.dart';
 export 'rendering/render_model_controller.dart';
 export 'rendering/render_scene_bridge.dart';
+export 'rendering/stage_camera.dart';
 export 'rendering/textured_mesh_prototype.dart';
 export 'scene/camera_move_prototype.dart';
 export 'scene/orbit_camera.dart';

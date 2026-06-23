@@ -20,7 +20,6 @@ import com.google.android.filament.gltfio.FilamentAsset
 import com.google.android.filament.gltfio.FilamentInstance
 import com.google.android.filament.gltfio.ResourceLoader
 import com.google.android.filament.gltfio.UbershaderProvider
-import com.google.android.filament.utils.Manipulator
 import com.google.android.filament.utils.ModelViewer
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
@@ -31,7 +30,9 @@ import java.io.FileNotFoundException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.ceil
+import kotlin.math.cos
 import kotlin.math.max
+import kotlin.math.sin
 
 class FilamentPlatformView(
     private val context: Context,
@@ -39,12 +40,7 @@ class FilamentPlatformView(
     viewId: Int,
 ) : PlatformView, MethodChannel.MethodCallHandler, Choreographer.FrameCallback {
     private val textureView = TextureView(context)
-    private val cameraManipulator =
-        Manipulator.Builder()
-            .targetPosition(0.0f, 0.0f, 0.0f)
-            .orbitHomePosition(0.0f, 0.0f, 4.0f)
-            .build(Manipulator.Mode.ORBIT)
-    private val modelViewer = ModelViewer(textureView, manipulator = cameraManipulator)
+    private val modelViewer = ModelViewer(textureView, manipulator = null)
     private val channel = MethodChannel(messenger, "filament_view_$viewId")
     private val choreographer = Choreographer.getInstance()
     private val startNanos = System.nanoTime()
@@ -58,9 +54,9 @@ class FilamentPlatformView(
     private val meshes = mutableMapOf<Int, NativeTexturedMesh>()
     private var currentSkybox: Skybox? = null
     private var environmentReflectionIntensity = 0.9f
+    private var cameraState = NativeCameraState()
 
     init {
-        textureView.setOnTouchListener(modelViewer)
         channel.setMethodCallHandler(this)
         setSkyboxColor(0.16f, 0.48f, 0.78f, 1.0f)
         modelViewer.scene.removeEntity(modelViewer.light)
@@ -72,7 +68,13 @@ class FilamentPlatformView(
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "resetView" -> {
+                cameraState = NativeCameraState()
+                applyCameraState()
                 modelViewer.resetToDefaultState()
+                result.success(null)
+            }
+            "setCamera" -> {
+                setCamera(call)
                 result.success(null)
             }
             "orbitCamera" -> {
@@ -185,6 +187,7 @@ class FilamentPlatformView(
             animator.applyAnimation(playback.animationIndex, animationTime)
             animator.updateBoneMatrices()
         }
+        applyCameraState()
         modelViewer.render(frameTimeNanos)
         choreographer.postFrameCallback(this)
     }
@@ -224,30 +227,56 @@ class FilamentPlatformView(
     }
 
     private fun orbitCamera(call: MethodCall) {
-        val centerX = textureView.width / 2
-        val centerY = textureView.height / 2
-        if (centerX <= 0 || centerY <= 0) return
-        val deltaX = (call.float("deltaYaw") * 180.0f).toInt()
-        val deltaY = (call.float("deltaPitch") * 180.0f).toInt()
-        cameraManipulator.grabBegin(centerX, centerY, false)
-        cameraManipulator.grabUpdate(centerX + deltaX, centerY + deltaY)
-        cameraManipulator.grabEnd()
+        cameraState =
+            cameraState.copy(
+                yaw = cameraState.yaw + call.float("deltaYaw"),
+                pitch = (cameraState.pitch + call.float("deltaPitch")).coerceIn(-1.45f, 1.45f),
+            )
+        applyCameraState()
     }
 
     private fun moveCamera(call: MethodCall) {
-        val centerX = textureView.width / 2
-        val centerY = textureView.height / 2
-        if (centerX <= 0 || centerY <= 0) return
-        val right = call.float("deltaX").toInt()
-        val forward = call.float("deltaY")
-        if (right != 0) {
-            cameraManipulator.grabBegin(centerX, centerY, true)
-            cameraManipulator.grabUpdate(centerX + right, centerY)
-            cameraManipulator.grabEnd()
-        }
-        if (forward != 0.0f) {
-            cameraManipulator.scroll(centerX, centerY, forward)
-        }
+        val right = call.float("deltaX") * 0.004f
+        val forward = call.float("deltaY") * 0.004f
+        val yawCos = cos(cameraState.yaw)
+        val yawSin = sin(cameraState.yaw)
+        cameraState =
+            cameraState.copy(
+                targetX = cameraState.targetX + yawCos * right + yawSin * forward,
+                targetZ = cameraState.targetZ - yawSin * right + yawCos * forward,
+            )
+        applyCameraState()
+    }
+
+    private fun setCamera(call: MethodCall) {
+        cameraState =
+            NativeCameraState(
+                targetX = call.float("targetX"),
+                targetY = call.float("targetY"),
+                targetZ = call.float("targetZ"),
+                yaw = call.float("yaw"),
+                pitch = call.float("pitch").coerceIn(-1.45f, 1.45f),
+                distance = max(0.1f, call.float("distance", 4.0f)),
+            )
+        applyCameraState()
+    }
+
+    private fun applyCameraState() {
+        val horizontal = cos(cameraState.pitch) * cameraState.distance
+        val eyeX = cameraState.targetX + sin(cameraState.yaw) * horizontal
+        val eyeY = cameraState.targetY + sin(cameraState.pitch) * cameraState.distance
+        val eyeZ = cameraState.targetZ + cos(cameraState.yaw) * horizontal
+        modelViewer.camera.lookAt(
+            eyeX.toDouble(),
+            eyeY.toDouble(),
+            eyeZ.toDouble(),
+            cameraState.targetX.toDouble(),
+            cameraState.targetY.toDouble(),
+            cameraState.targetZ.toDouble(),
+            0.0,
+            1.0,
+            0.0,
+        )
     }
 
     private fun createModelInstance(call: MethodCall) {
@@ -881,6 +910,15 @@ class FilamentPlatformView(
             return (currentNanos - startedAtNanos) / 1_000_000_000.0f * speed
         }
     }
+
+    private data class NativeCameraState(
+        val targetX: Float = 0.0f,
+        val targetY: Float = 0.0f,
+        val targetZ: Float = 0.0f,
+        val yaw: Float = 0.0f,
+        val pitch: Float = 0.0f,
+        val distance: Float = 4.0f,
+    )
 
     companion object {
         init {

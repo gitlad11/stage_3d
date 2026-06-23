@@ -182,6 +182,35 @@ void tick(double deltaSeconds) {
 body. `PositionedModel` adds a local visual offset to the same node, so the
 model and collider move together while still being tuned independently.
 
+## Camera Presets
+
+Use `StageCamera` with `FilamentViewportController` when a scene needs multiple
+views, such as a wide scene camera and a close model camera.
+
+```dart
+final viewport = FilamentViewportController();
+
+const wideCamera = StageCamera.orbit(
+  target: Vector3.zero,
+  yaw: -0.6,
+  pitch: 0.35,
+  distance: 8,
+);
+
+const closeCamera = StageCamera.orbit(
+  target: Vector3(0, 1, 0),
+  yaw: 0.25,
+  pitch: 0.2,
+  distance: 3,
+);
+
+viewport.setCamera(wideCamera);
+viewport.setCamera(closeCamera);
+```
+
+The same controller API updates the Android Filament camera and the Flutter
+fallback preview camera.
+
 ## Resource Lifetime
 
 Stage 3D uses native C++ resources through Jolt and Filament. Dart garbage

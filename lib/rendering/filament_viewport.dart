@@ -9,6 +9,7 @@ import 'render_environment_controller.dart';
 import 'render_light_controller.dart';
 import 'render_model_controller.dart';
 import 'render_scene_bridge.dart';
+import 'stage_camera.dart';
 import 'textured_mesh_prototype.dart';
 
 /// Controls commands sent to the native Filament viewport.
@@ -16,6 +17,8 @@ import 'textured_mesh_prototype.dart';
 /// This renderer bridge is separate from the reusable physics API.
 final class FilamentViewportController {
   RenderSceneBridge? _bridge;
+  OrbitCamera? _fallbackCamera;
+  StageCamera _camera = StageCamera.defaultView;
 
   void attach(MethodChannel channel) {
     attachBridge(MethodChannelRenderSceneBridge(channel));
@@ -23,17 +26,33 @@ final class FilamentViewportController {
 
   void attachBridge(RenderSceneBridge bridge) {
     _bridge = bridge;
+    _bridge?.setCamera(_camera);
   }
 
   void detach() {
     _bridge = null;
+    _fallbackCamera = null;
+  }
+
+  void attachFallbackCamera(OrbitCamera camera) {
+    _fallbackCamera = camera;
+    camera.setCamera(_camera, notify: false);
+  }
+
+  /// Applies a camera preset to the active renderer view.
+  void setCamera(StageCamera camera) {
+    _camera = camera;
+    _fallbackCamera?.setCamera(camera);
+    _bridge?.setCamera(camera);
   }
 
   void resetView() {
+    setCamera(StageCamera.defaultView);
     _bridge?.resetView();
   }
 
   void orbitCamera(double deltaYaw, double deltaPitch) {
+    _camera = _camera.orbitBy(deltaYaw, deltaPitch);
     _bridge?.orbitCamera(deltaYaw, deltaPitch);
   }
 
@@ -87,6 +106,7 @@ class _FilamentViewportState extends State<FilamentViewport> {
       bridge.createTexturedMesh(index + 1, mesh);
     }
     widget.modelController.attachBridge(bridge);
+    widget.controller.setCamera(widget.controller._camera);
     widget.onRendererReady?.call();
   }
 
@@ -119,5 +139,11 @@ class _FilamentViewportState extends State<FilamentViewport> {
         ),
       ),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.attachFallbackCamera(widget.fallbackCamera);
   }
 }

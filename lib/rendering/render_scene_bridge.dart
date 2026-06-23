@@ -5,6 +5,7 @@ import '../physics/vector3.dart';
 import 'environment.dart';
 import 'light.dart';
 import 'model_asset.dart';
+import 'stage_camera.dart';
 import 'textured_mesh_prototype.dart';
 
 /// Renderer backend contract used by Dart scene controllers.
@@ -15,6 +16,9 @@ import 'textured_mesh_prototype.dart';
 abstract interface class RenderSceneBridge {
   /// Resets the active renderer camera/view state.
   Future<void> resetView();
+
+  /// Applies an orbit camera preset to the active renderer view.
+  Future<void> setCamera(StageCamera camera);
 
   /// Rotates an orbit camera by normalized frame deltas.
   Future<void> orbitCamera(double deltaYaw, double deltaPitch);
@@ -94,6 +98,10 @@ final class MethodChannelRenderSceneBridge implements RenderSceneBridge {
 
   @override
   Future<void> resetView() => channel.invokeMethod<void>('resetView');
+
+  @override
+  Future<void> setCamera(StageCamera camera) =>
+      channel.invokeMethod<void>('setCamera', camera.toMessage());
 
   @override
   Future<void> orbitCamera(double deltaYaw, double deltaPitch) =>

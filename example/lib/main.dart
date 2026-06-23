@@ -3,6 +3,20 @@ import 'package:flutter/scheduler.dart';
 import 'package:stage_3d/jolt_physics.dart';
 import 'package:stage_3d/jolt_rendering.dart';
 
+const _wideCamera = StageCamera.orbit(
+  target: Vector3(0, 0.5, 0),
+  yaw: -0.55,
+  pitch: 0.32,
+  distance: 7,
+);
+
+const _closeCamera = StageCamera.orbit(
+  target: Vector3(0, 1.1, 0),
+  yaw: 0.15,
+  pitch: 0.18,
+  distance: 3,
+);
+
 void main() {
   runApp(const Stage3DExampleApp());
 }
@@ -50,6 +64,7 @@ class _Stage3DExampleSceneState extends State<Stage3DExampleScene>
   late final RenderModelComponent _foxModel;
   late final List<TexturedMeshPrototype> _meshes;
   var _status = 'Loading renderer';
+  var _activeCamera = _wideCamera;
   Duration? _lastTick;
 
   @override
@@ -60,6 +75,7 @@ class _Stage3DExampleSceneState extends State<Stage3DExampleScene>
     _scene = StageScene();
     _camera = OrbitCamera();
     _viewportController = FilamentViewportController();
+    _viewportController.setCamera(_wideCamera);
     _environmentController = RenderEnvironmentController(
       initialEnvironment: const RenderEnvironment(
         skyColor: Vector3(0.34, 0.62, 0.84),
@@ -197,25 +213,42 @@ class _Stage3DExampleSceneState extends State<Stage3DExampleScene>
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: const Color(0xd908111f),
-                  border: Border.all(color: const Color(0x6638bdf8)),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  child: Text(
-                    _status,
-                    style: const TextStyle(
-                      color: Color(0xffe0f2fe),
-                      fontWeight: FontWeight.w700,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: const Color(0xd908111f),
+                      border: Border.all(color: const Color(0x6638bdf8)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      child: Text(
+                        _status,
+                        style: const TextStyle(
+                          color: Color(0xffe0f2fe),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  SegmentedButton<StageCamera>(
+                    segments: const [
+                      ButtonSegment(value: _wideCamera, label: Text('Wide')),
+                      ButtonSegment(value: _closeCamera, label: Text('Close')),
+                    ],
+                    selected: {_activeCamera},
+                    onSelectionChanged: (selection) {
+                      setState(() => _activeCamera = selection.single);
+                      _viewportController.setCamera(_activeCamera);
+                    },
+                  ),
+                ],
               ),
             ),
           ),

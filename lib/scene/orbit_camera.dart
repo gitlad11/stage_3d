@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../physics/vector3.dart';
+import '../rendering/stage_camera.dart';
 
 final class OrbitCamera extends ChangeNotifier {
   static const _defaultYaw = -0.6;
@@ -22,6 +23,17 @@ final class OrbitCamera extends ChangeNotifier {
   double get distance => _distance;
 
   Vector3 get target => _target;
+
+  void setCamera(StageCamera camera, {bool notify = true}) {
+    _yaw = camera.yaw;
+    _pitch = camera.pitch;
+    _distance = camera.distance;
+    _scaleStartDistance = camera.distance;
+    _target = camera.target;
+    if (notify) {
+      notifyListeners();
+    }
+  }
 
   void beginGesture() {
     _scaleStartDistance = _distance;
