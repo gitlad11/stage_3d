@@ -3,7 +3,7 @@ description: "Flutter 3D plugin with Google Filament rendering and Jolt Physics 
 version: 0.1.0-alpha.1
 topics:
   - flutter
-  - 3d
+  - three-d
   - jolt
   - physics
   - filament

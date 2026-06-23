@@ -1,0 +1,15 @@
+name: stage_3d_example
+description: Minimal Stage 3D scene with Filament rendering and Jolt physics.
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  stage_3d:
+    path: ..
+
+flutter:
+  uses-material-design: true
