@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0-alpha.1
+## 0.1.0-alpha.2
 
 - Initial experimental Stage 3D release.
 - Added reusable Jolt physics worlds, rigid bodies, collider shapes, compound
