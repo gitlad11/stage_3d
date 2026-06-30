@@ -11,10 +11,12 @@ animation, and spatial query APIs independently inside any Flutter UI.
 
 Stage 3D currently combines
 [Jolt Physics](https://github.com/jrouwe/JoltPhysics) `v5.5.0` with
-[Filament](https://github.com/google/filament) rendering on Android and
-Windows. The Android backend uses Filament's Android bindings; the Windows
-backend uses native Filament C++ and requires a local Filament Windows SDK
-installation.
+[Filament](https://github.com/google/filament) rendering on Android and a
+native Windows Filament demo backend. The Android backend is packaged as a
+Flutter plugin through Filament's Android bindings. The Windows backend uses
+native Filament C++ and currently lives in this repository's Windows demo
+runner; extracting it into a reusable Windows plugin backend is the next
+packaging step.
 
 Support & Contact: [efimovi420@gmail.com](mailto:efimovi420@gmail.com)
 
@@ -31,9 +33,10 @@ Stage 3D ships with native integrations for two separate systems:
 - **Jolt Physics** through a C++ `dart:ffi` adapter for simulation, rigid
   bodies, collider shapes, compound shapes, impulses, kinematic motion, and ray
   casts.
-- **Filament** through an Android Platform View and a Windows C++ backend for
-  `.glb` rendering, model instances, animations, lights, environment settings,
-  render options, procedural meshes, and shader materials.
+- **Filament** through an Android Platform View, plus a Windows C++ demo
+  backend for `.glb` rendering, model instances, animations, lights,
+  environment settings, render options, procedural meshes, and shader
+  materials.
 
 The APIs are intentionally separate. You can use only Jolt, only Filament, the
 included `StageScene` component runtime, or your own scene layer.
@@ -46,7 +49,7 @@ included `StageScene` component runtime, or your own scene layer.
 | Rigid bodies | Static, kinematic, and dynamic bodies |
 | Collider shapes | Box, capsule, sphere, cylinder, and compound colliders |
 | Spatial queries | Finite Jolt ray casts with closest-hit results |
-| Native rendering | Filament Android viewport and Windows C++ backend |
+| Native rendering | Filament Android viewport and Windows C++ demo backend |
 | 3D assets | Reusable `.glb` assets and independent visual instances |
 | Animations | Inspect clips and control per-instance playback |
 | Lighting | Directional and movable point lights |
@@ -65,9 +68,11 @@ included `StageScene` component runtime, or your own scene layer.
 
 ## Project Status
 
-Stage 3D is an experimental alpha. Native Filament rendering currently targets
-Android and Windows. Native Jolt physics currently targets Android; other
-Flutter targets use a lightweight preview physics backend for tests and UI
+Stage 3D is an experimental alpha. Packaged native Filament rendering currently
+targets Android. This repository also includes a working Windows C++ Filament
+demo backend, but it is not yet extracted as a reusable Windows Flutter plugin
+for downstream applications. Native Jolt physics currently targets Android;
+other Flutter targets use a lightweight preview physics backend for tests and UI
 iteration. Public APIs may change before a stable `1.0.0` release.
 
 ## Quick Start
@@ -317,11 +322,11 @@ The older Jolt physics scene is still available from the `/jolt` route.
 | Platform | Backend |
 | --- | --- |
 | Android | Jolt Physics through `dart:ffi`; Filament through Android Gradle/Maven dependencies |
-| Windows | Filament C++ backend; requires a local Google Filament Windows SDK |
+| Windows | Working repository demo backend; reusable plugin packaging is pending |
 | Other Flutter targets | Lightweight preview backend |
 
-Android downloads Filament through Gradle dependencies. Windows uses the native
-C++ SDK, so install the official
+Android downloads Filament through Gradle dependencies. To run the Windows demo
+from this repository, install the official
 [Google Filament Windows release](https://github.com/google/filament/releases)
 and expose it before building:
 
@@ -333,6 +338,11 @@ flutter build windows --debug
 For a persistent setup, add `STAGE_FILAMENT_ROOT` to your user environment
 variables. See [Windows Filament backend](docs/windows_filament_backend.md) for
 setup notes and current limitations.
+
+Downstream Flutter apps that depend on `stage_3d` from git currently get the
+Android plugin backend automatically. Windows support in a downstream app
+requires the Windows runner integration from this repository until the Windows
+backend is moved into a real Flutter Windows plugin target.
 
 The current public shape API supports `BoxShape`, `CapsuleShape`,
 `SphereShape`, `CylinderShape`, and `CompoundShape`.
