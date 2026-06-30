@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-alpha.4
+
+- Fixed pub.dev packaging for Android builds by including the required
+  `third_party/JoltPhysics/Build` CMake files.
+- Clarified Windows backend packaging status and setup notes.
+
 ## 0.1.0-alpha.2
 
 - Initial experimental Stage 3D release.
