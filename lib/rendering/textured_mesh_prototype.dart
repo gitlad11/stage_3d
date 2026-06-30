@@ -570,7 +570,7 @@ final class TexturedMeshPrototype {
               0,
               -halfDepth + depth * tv,
             ),
-            uv: Offset(tu, tv),
+            uv: Offset(tu * texture.repeatU, tv * texture.repeatV),
           ),
         );
       }
@@ -584,11 +584,11 @@ final class TexturedMeshPrototype {
         final bottomRight = bottomLeft + 1;
         indices.addAll([
           topLeft,
+          bottomRight,
           topRight,
-          bottomRight,
           topLeft,
-          bottomRight,
           bottomLeft,
+          bottomRight,
         ]);
       }
     }

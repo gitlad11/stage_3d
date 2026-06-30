@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:stage_3d/jolt_rendering.dart';
 import 'package:stage_3d/main.dart';
+import 'package:stage_3d/stage_3d.dart';
 
 void main() {
   testWidgets('VirtualJoystick reports normalized values and resets', (

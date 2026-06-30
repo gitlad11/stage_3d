@@ -5,6 +5,7 @@ import '../physics/vector3.dart';
 import 'environment.dart';
 import 'light.dart';
 import 'model_asset.dart';
+import 'render_options.dart';
 import 'stage_camera.dart';
 import 'textured_mesh_prototype.dart';
 
@@ -29,8 +30,14 @@ abstract interface class RenderSceneBridge {
   /// Applies scene-wide environment settings.
   Future<void> setEnvironment(RenderEnvironment environment);
 
+  /// Applies view-level render quality and post-processing settings.
+  Future<void> setRenderOptions(RenderOptions options);
+
   /// Loads a reusable visual asset.
   Future<void> loadModelAsset(RenderModelAsset asset);
+
+  /// Releases a visual asset that has no remaining instances.
+  Future<void> unloadModelAsset(ModelAssetId assetId);
 
   /// Creates a visible model instance.
   Future<void> createModelInstance(RenderModelInstance instance);
@@ -119,10 +126,20 @@ final class MethodChannelRenderSceneBridge implements RenderSceneBridge {
       channel.invokeMethod<void>('setEnvironment', environment.toMessage());
 
   @override
+  Future<void> setRenderOptions(RenderOptions options) =>
+      channel.invokeMethod<void>('setRenderOptions', options.toMessage());
+
+  @override
   Future<void> loadModelAsset(RenderModelAsset asset) =>
       channel.invokeMethod<void>('loadModelAsset', {
         'assetId': asset.id.value,
         ...asset.settings.toMessage(),
+      });
+
+  @override
+  Future<void> unloadModelAsset(ModelAssetId assetId) =>
+      channel.invokeMethod<void>('unloadModelAsset', {
+        'assetId': assetId.value,
       });
 
   @override

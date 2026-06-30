@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:stage_3d/jolt_physics.dart';
+import 'package:stage_3d/stage_3d.dart';
 
 void main() {
   test('world exposes generic static, dynamic and kinematic bodies', () {

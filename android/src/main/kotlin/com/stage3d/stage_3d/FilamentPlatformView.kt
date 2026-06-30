@@ -15,6 +15,7 @@ import com.google.android.filament.MaterialInstance
 import com.google.android.filament.Skybox
 import com.google.android.filament.Texture
 import com.google.android.filament.TextureSampler
+import com.google.android.filament.View
 import com.google.android.filament.gltfio.AssetLoader
 import com.google.android.filament.gltfio.FilamentAsset
 import com.google.android.filament.gltfio.FilamentInstance
@@ -30,9 +31,7 @@ import java.io.FileNotFoundException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.ceil
-import kotlin.math.cos
 import kotlin.math.max
-import kotlin.math.sin
 
 class FilamentPlatformView(
     private val context: Context,
@@ -47,6 +46,7 @@ class FilamentPlatformView(
     private val materialProvider = UbershaderProvider(modelViewer.engine)
     private val assetLoader = AssetLoader(modelViewer.engine, materialProvider, EntityManager.get())
     private val resourceLoader = ResourceLoader(modelViewer.engine)
+    private val nativeEngine = NativeStageEngine()
     private var disposed = false
     private val lights = mutableMapOf<Int, Int>()
     private val assets = mutableMapOf<Int, NativeModelAsset>()
@@ -54,7 +54,6 @@ class FilamentPlatformView(
     private val meshes = mutableMapOf<Int, NativeTexturedMesh>()
     private var currentSkybox: Skybox? = null
     private var environmentReflectionIntensity = 0.9f
-    private var cameraState = NativeCameraState()
 
     init {
         channel.setMethodCallHandler(this)
@@ -68,7 +67,7 @@ class FilamentPlatformView(
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "resetView" -> {
-                cameraState = NativeCameraState()
+                nativeEngine.resetCamera()
                 applyCameraState()
                 modelViewer.resetToDefaultState()
                 result.success(null)
@@ -89,8 +88,16 @@ class FilamentPlatformView(
                 setEnvironment(call)
                 result.success(null)
             }
+            "setRenderOptions" -> {
+                setRenderOptions(call)
+                result.success(null)
+            }
             "loadModelAsset" -> {
                 loadModelAsset(context, call)
+                result.success(null)
+            }
+            "unloadModelAsset" -> {
+                unloadModelAsset(call.int("assetId"))
                 result.success(null)
             }
             "createModelInstance" -> {
@@ -137,9 +144,9 @@ class FilamentPlatformView(
                 result.success(null)
             }
             "setLightPosition" -> {
-                updateLight(call) { manager, instance ->
-                    manager.setPosition(
-                        instance,
+                updateLight(call) { id ->
+                    nativeEngine.setLightPosition(
+                        id,
                         call.float("x"),
                         call.float("y"),
                         call.float("z"),
@@ -148,9 +155,9 @@ class FilamentPlatformView(
                 result.success(null)
             }
             "setLightDirection" -> {
-                updateLight(call) { manager, instance ->
-                    manager.setDirection(
-                        instance,
+                updateLight(call) { id ->
+                    nativeEngine.setLightDirection(
+                        id,
                         call.float("x"),
                         call.float("y"),
                         call.float("z"),
@@ -159,8 +166,8 @@ class FilamentPlatformView(
                 result.success(null)
             }
             "setLightIntensity" -> {
-                updateLight(call) { manager, instance ->
-                    manager.setIntensity(instance, call.float("intensity"))
+                updateLight(call) { id ->
+                    nativeEngine.setLightIntensity(id, call.float("intensity"))
                 }
                 result.success(null)
             }
@@ -176,18 +183,18 @@ class FilamentPlatformView(
         if (disposed) {
             return
         }
-        for (model in instances.values) {
+        for ((instanceId, model) in instances) {
             val animator = model.instance.animator
-            val playback = model.animation ?: continue
-            if (playback.animationIndex >= animator.animationCount) continue
-            val duration = animator.getAnimationDuration(playback.animationIndex)
+            val animationIndex = nativeEngine.modelAnimationIndex(instanceId)
+            if (animationIndex < 0 || animationIndex >= animator.animationCount) continue
+            val duration = animator.getAnimationDuration(animationIndex)
             if (duration <= 0.0f) continue
-            val elapsed = playback.elapsedSeconds(frameTimeNanos)
-            val animationTime = if (playback.loop) elapsed % duration else minOf(elapsed, duration)
-            animator.applyAnimation(playback.animationIndex, animationTime)
+            val animationTime =
+                nativeEngine.sampleModelAnimationTime(instanceId, frameTimeNanos, duration)
+            if (animationTime.isNaN()) continue
+            animator.applyAnimation(animationIndex, animationTime)
             animator.updateBoneMatrices()
         }
-        applyCameraState()
         modelViewer.render(frameTimeNanos)
         choreographer.postFrameCallback(this)
     }
@@ -199,13 +206,13 @@ class FilamentPlatformView(
         lights.keys.toList().forEach(::destroyLight)
         meshes.keys.toList().forEach(::destroyTexturedMesh)
         instances.keys.toList().forEach(::destroyModelInstance)
-        assets.values.forEach { assetLoader.destroyAsset(it.asset) }
-        assets.clear()
+        assets.keys.toList().forEach(::unloadModelAsset)
         resourceLoader.destroy()
         materialProvider.destroyMaterials()
         materialProvider.destroy()
         currentSkybox?.let(modelViewer.engine::destroySkybox)
         currentSkybox = null
+        nativeEngine.close()
         assetLoader.destroy()
         modelViewer.destroy()
     }
@@ -217,65 +224,58 @@ class FilamentPlatformView(
         val bytes = openAssetBytes(assetPath)
         val asset = assetLoader.createAsset(ByteBuffer.wrap(bytes)) ?: return
         resourceLoader.loadResources(asset)
-        assets[assetId] =
-            NativeModelAsset(
-                asset = asset,
-                normalizedScale = call.float("normalizedScale"),
-                animationIndex = call.nullableInt("animationIndex"),
-                verticalAnchor = NativeModelVerticalAnchor.from(call.string("verticalAnchor")),
-            )
+        val bounds = asset.boundingBox
+        nativeEngine.registerModelAsset(
+            assetId,
+            call.float("normalizedScale"),
+            NativeModelVerticalAnchor.from(call.string("verticalAnchor")).nativeValue,
+            bounds.center,
+            bounds.halfExtent,
+        )
+        assets[assetId] = NativeModelAsset(asset)
+    }
+
+    private fun unloadModelAsset(assetId: Int) {
+        val asset = assets[assetId] ?: return
+        if (!nativeEngine.removeModelAsset(assetId)) return
+        assets.remove(assetId)
+        assetLoader.destroyAsset(asset.asset)
     }
 
     private fun orbitCamera(call: MethodCall) {
-        cameraState =
-            cameraState.copy(
-                yaw = cameraState.yaw + call.float("deltaYaw"),
-                pitch = (cameraState.pitch + call.float("deltaPitch")).coerceIn(-1.45f, 1.45f),
-            )
+        nativeEngine.orbitCamera(call.float("deltaYaw"), call.float("deltaPitch"))
         applyCameraState()
     }
 
     private fun moveCamera(call: MethodCall) {
-        val right = call.float("deltaX") * 0.004f
-        val forward = call.float("deltaY") * 0.004f
-        val yawCos = cos(cameraState.yaw)
-        val yawSin = sin(cameraState.yaw)
-        cameraState =
-            cameraState.copy(
-                targetX = cameraState.targetX + yawCos * right + yawSin * forward,
-                targetZ = cameraState.targetZ - yawSin * right + yawCos * forward,
-            )
+        nativeEngine.moveCamera(call.float("deltaX"), call.float("deltaY"))
         applyCameraState()
     }
 
     private fun setCamera(call: MethodCall) {
-        cameraState =
-            NativeCameraState(
-                targetX = call.float("targetX"),
-                targetY = call.float("targetY"),
-                targetZ = call.float("targetZ"),
-                yaw = call.float("yaw"),
-                pitch = call.float("pitch").coerceIn(-1.45f, 1.45f),
-                distance = max(0.1f, call.float("distance", 4.0f)),
-            )
+        nativeEngine.setCamera(
+            call.float("targetX"),
+            call.float("targetY"),
+            call.float("targetZ"),
+            call.float("yaw"),
+            call.float("pitch"),
+            call.float("distance", 4.0f),
+        )
         applyCameraState()
     }
 
     private fun applyCameraState() {
-        val horizontal = cos(cameraState.pitch) * cameraState.distance
-        val eyeX = cameraState.targetX + sin(cameraState.yaw) * horizontal
-        val eyeY = cameraState.targetY + sin(cameraState.pitch) * cameraState.distance
-        val eyeZ = cameraState.targetZ + cos(cameraState.yaw) * horizontal
+        val camera = nativeEngine.camera()
         modelViewer.camera.lookAt(
-            eyeX.toDouble(),
-            eyeY.toDouble(),
-            eyeZ.toDouble(),
-            cameraState.targetX.toDouble(),
-            cameraState.targetY.toDouble(),
-            cameraState.targetZ.toDouble(),
-            0.0,
-            1.0,
-            0.0,
+            camera[0].toDouble(),
+            camera[1].toDouble(),
+            camera[2].toDouble(),
+            camera[3].toDouble(),
+            camera[4].toDouble(),
+            camera[5].toDouble(),
+            camera[6].toDouble(),
+            camera[7].toDouble(),
+            camera[8].toDouble(),
         )
     }
 
@@ -284,75 +284,57 @@ class FilamentPlatformView(
         val asset = assets[assetId] ?: return
         val instanceId = call.int("instanceId")
         destroyModelInstance(instanceId)
-        val instance = assetLoader.createInstance(asset.asset) ?: return
-        val model =
-            NativeModelInstance(
-                asset = asset,
-                instance = instance,
-                animation =
-                    call.nullableInt("animationIndex")?.let {
-                        NativeAnimationPlayback(
-                            animationIndex = it,
-                            loop = call.boolean("loop", true),
-                            speed = call.float("speed", 1.0f),
-                            pausedAtNanos = if (call.boolean("paused")) System.nanoTime() else null,
-                        )
-                    },
-            )
+        if (!nativeEngine.createModelInstance(instanceId, assetId)) return
+        val instance =
+            assetLoader.createInstance(asset.asset)
+                ?: run {
+                    nativeEngine.removeModelInstance(instanceId)
+                    return
+                }
+        val model = NativeModelInstance(instance)
         instances[instanceId] = model
+        call.nullableInt("animationIndex")?.let { animationIndex ->
+            nativeEngine.playModelAnimation(
+                instanceId,
+                animationIndex,
+                call.boolean("loop", true),
+                call.float("speed", 1.0f),
+                System.nanoTime(),
+                call.boolean("paused"),
+            )
+        }
         modelViewer.scene.addEntities(instance.entities)
-        updateModelTransform(model, call)
+        updateModelTransform(instanceId, model, call)
     }
 
     private fun updateModelTransform(call: MethodCall) {
-        val model = instances[call.int("instanceId")] ?: return
-        updateModelTransform(model, call)
+        val instanceId = call.int("instanceId")
+        val model = instances[instanceId] ?: return
+        updateModelTransform(instanceId, model, call)
     }
 
-    private fun updateModelTransform(model: NativeModelInstance, call: MethodCall) {
-        val box = model.asset.asset.boundingBox
-        val extent = box.halfExtent
-        val maxExtent = maxOf(extent[0], extent[1], extent[2]) * 2.0f
-        val scale = model.asset.normalizedScale * 2.0f / maxExtent
-        val center = box.center
-        val anchor =
-            when (model.asset.verticalAnchor) {
-                NativeModelVerticalAnchor.ORIGIN -> floatArrayOf(0.0f, 0.0f, 0.0f)
-                NativeModelVerticalAnchor.CENTER -> center
-                NativeModelVerticalAnchor.BOTTOM ->
-                    floatArrayOf(center[0], center[1] - extent[1], center[2])
-            }
-        val qx = call.float("qx")
-        val qy = call.float("qy")
-        val qz = call.float("qz")
-        val qw = call.float("qw")
-        val m00 = 1 - 2 * (qy * qy + qz * qz)
-        val m01 = 2 * (qx * qy - qz * qw)
-        val m02 = 2 * (qx * qz + qy * qw)
-        val m10 = 2 * (qx * qy + qz * qw)
-        val m11 = 1 - 2 * (qx * qx + qz * qz)
-        val m12 = 2 * (qy * qz - qx * qw)
-        val m20 = 2 * (qx * qz - qy * qw)
-        val m21 = 2 * (qy * qz + qx * qw)
-        val m22 = 1 - 2 * (qx * qx + qy * qy)
-        val targetX = call.float("x") * 0.12f
-        val targetY = (call.float("y") - 0.65f) * 0.12f - 0.15f
-        val targetZ = -4.0f - call.float("z") * 0.12f
-        val tx = targetX - scale * (m00 * anchor[0] + m01 * anchor[1] + m02 * anchor[2])
-        val ty = targetY - scale * (m10 * anchor[0] + m11 * anchor[1] + m12 * anchor[2])
-        val tz = targetZ - scale * (m20 * anchor[0] + m21 * anchor[1] + m22 * anchor[2])
-        val transform =
-            floatArrayOf(
-                scale * m00, scale * m10, scale * m20, 0.0f,
-                scale * m01, scale * m11, scale * m21, 0.0f,
-                scale * m02, scale * m12, scale * m22, 0.0f,
-                tx, ty, tz, 1.0f,
-            )
+    private fun updateModelTransform(
+        instanceId: Int,
+        model: NativeModelInstance,
+        call: MethodCall,
+    ) {
+        nativeEngine.setModelTransform(
+            instanceId,
+            call.float("x"),
+            call.float("y"),
+            call.float("z"),
+            call.float("qx"),
+            call.float("qy"),
+            call.float("qz"),
+            call.float("qw"),
+        )
+        nativeEngine.fillModelMatrix(instanceId, model.transform)
         val manager = modelViewer.engine.transformManager
-        manager.setTransform(manager.getInstance(model.instance.root), transform)
+        manager.setTransform(manager.getInstance(model.instance.root), model.transform)
     }
 
     private fun destroyModelInstance(id: Int) {
+        nativeEngine.removeModelInstance(id)
         val model = instances.remove(id) ?: return
         modelViewer.scene.removeEntities(model.instance.entities)
     }
@@ -439,13 +421,22 @@ class FilamentPlatformView(
     }
 
     private fun setEnvironment(call: MethodCall) {
-        setSkyboxColor(
+        nativeEngine.setEnvironment(
             call.float("skyR", 0.16f),
             call.float("skyG", 0.48f),
             call.float("skyB", 0.78f),
             call.float("skyA", 1.0f),
+            call.float("ambientIntensity", 30000.0f),
+            call.float("reflectionIntensity", 0.9f),
         )
-        environmentReflectionIntensity = call.float("reflectionIntensity", 0.9f)
+        val environment = nativeEngine.environment()
+        setSkyboxColor(
+            environment[0],
+            environment[1],
+            environment[2],
+            environment[3],
+        )
+        environmentReflectionIntensity = environment[5]
         updateMeshReflectance(environmentReflectionIntensity)
     }
 
@@ -461,6 +452,47 @@ class FilamentPlatformView(
         for (mesh in meshes.values) {
             mesh.customMaterial?.materialInstance?.setParameter("reflectance", reflectance)
         }
+    }
+
+    private fun setRenderOptions(call: MethodCall) {
+        val view = modelViewer.view
+        view.setPostProcessingEnabled(call.boolean("postProcessing", true))
+        view.setShadowingEnabled(call.boolean("shadows", true))
+        view.setShadowType(shadowType(call.string("shadowType")))
+
+        val ambientOcclusion = call.map("ambientOcclusion")
+        val aoOptions = View.AmbientOcclusionOptions()
+        aoOptions.enabled = ambientOcclusion.boolean("enabled")
+        aoOptions.radius = ambientOcclusion.float("radius", 0.3f)
+        aoOptions.intensity = ambientOcclusion.float("intensity", 1.0f)
+        aoOptions.power = ambientOcclusion.float("power", 1.0f)
+        aoOptions.quality = quality(ambientOcclusion.string("quality"))
+        view.ambientOcclusionOptions = aoOptions
+
+        val bloom = call.map("bloom")
+        val bloomOptions = View.BloomOptions()
+        bloomOptions.enabled = bloom.boolean("enabled")
+        bloomOptions.strength = bloom.float("strength", 0.1f)
+        bloomOptions.resolution = bloom.int("resolution", 384)
+        bloomOptions.levels = bloom.int("levels", 6)
+        bloomOptions.threshold = bloom.boolean("threshold", true)
+        bloomOptions.quality = quality(bloom.string("quality"))
+        view.bloomOptions = bloomOptions
+
+        val reflections = call.map("screenSpaceReflections")
+        val reflectionOptions = View.ScreenSpaceReflectionsOptions()
+        reflectionOptions.enabled = reflections.boolean("enabled")
+        reflectionOptions.thickness = reflections.float("thickness", 0.1f)
+        reflectionOptions.bias = reflections.float("bias", 0.01f)
+        reflectionOptions.maxDistance = reflections.float("maxDistance", 3.0f)
+        reflectionOptions.stride = reflections.float("stride", 2.0f)
+        view.screenSpaceReflectionsOptions = reflectionOptions
+
+        val msaa = call.map("msaa")
+        val msaaOptions = View.MultiSampleAntiAliasingOptions()
+        msaaOptions.enabled = msaa.boolean("enabled")
+        msaaOptions.sampleCount = msaa.int("sampleCount", 4)
+        view.multiSampleAntiAliasingOptions = msaaOptions
     }
 
     private fun applyShaderUniforms(
@@ -780,50 +812,66 @@ class FilamentPlatformView(
     }
 
     private fun playModelAnimation(call: MethodCall) {
-        val model = instances[call.int("instanceId")] ?: return
-        model.animation =
-            NativeAnimationPlayback(
-                animationIndex = call.int("animationIndex"),
-                loop = call.boolean("loop", true),
-                speed = call.float("speed", 1.0f),
-            )
+        val instanceId = call.int("instanceId")
+        if (!instances.containsKey(instanceId)) return
+        nativeEngine.playModelAnimation(
+            instanceId,
+            call.int("animationIndex"),
+            call.boolean("loop", true),
+            call.float("speed", 1.0f),
+            System.nanoTime(),
+        )
     }
 
     private fun pauseModelAnimation(id: Int) {
-        val playback = instances[id]?.animation ?: return
-        if (playback.pausedAtNanos == null) {
-            playback.pausedAtNanos = System.nanoTime()
-        }
+        if (!instances.containsKey(id)) return
+        nativeEngine.pauseModelAnimation(id, System.nanoTime())
     }
 
     private fun resumeModelAnimation(id: Int) {
-        val playback = instances[id]?.animation ?: return
-        val pausedAtNanos = playback.pausedAtNanos ?: return
-        playback.startedAtNanos += System.nanoTime() - pausedAtNanos
-        playback.pausedAtNanos = null
+        if (!instances.containsKey(id)) return
+        nativeEngine.resumeModelAnimation(id, System.nanoTime())
     }
 
     private fun stopModelAnimation(id: Int) {
-        instances[id]?.animation = null
+        if (!instances.containsKey(id)) return
+        nativeEngine.stopModelAnimation(id)
     }
 
     private fun createLight(call: MethodCall) {
         val id = call.int("id")
         destroyLight(id)
+        nativeEngine.upsertLight(
+            id,
+            call.int("type"),
+            call.float("r"),
+            call.float("g"),
+            call.float("b"),
+            call.float("intensity"),
+            call.float("x"),
+            call.float("y"),
+            call.float("z"),
+            call.float("dx"),
+            call.float("dy"),
+            call.float("dz"),
+            call.float("falloffRadius"),
+            call.boolean("castShadows"),
+        )
+        val light = nativeEngine.light(id) ?: return
         val entity = EntityManager.get().create()
         val type =
-            if (call.int("type") == 1) LightManager.Type.POINT else LightManager.Type.SUN
+            if (light[1].toInt() == 1) LightManager.Type.POINT else LightManager.Type.SUN
         val builder =
             LightManager.Builder(type)
-                .color(call.float("r"), call.float("g"), call.float("b"))
-                .intensity(call.float("intensity"))
-                .castShadows(call.boolean("castShadows"))
+                .color(light[2], light[3], light[4])
+                .intensity(light[5])
+                .castShadows(light[13] != 0.0f)
         if (type == LightManager.Type.POINT) {
             builder
-                .position(call.float("x"), call.float("y"), call.float("z"))
-                .falloff(call.float("falloffRadius"))
+                .position(light[6], light[7], light[8])
+                .falloff(light[12])
         } else {
-            builder.direction(call.float("dx"), call.float("dy"), call.float("dz"))
+            builder.direction(light[9], light[10], light[11])
         }
         builder.build(modelViewer.engine, entity)
         lights[id] = entity
@@ -832,14 +880,28 @@ class FilamentPlatformView(
 
     private fun updateLight(
         call: MethodCall,
-        update: (LightManager, Int) -> Unit,
+        updateNative: (Int) -> Unit,
     ) {
-        val entity = lights[call.int("id")] ?: return
+        val id = call.int("id")
+        updateNative(id)
+        applyLightState(id)
+    }
+
+    private fun applyLightState(id: Int) {
+        val entity = lights[id] ?: return
+        val light = nativeEngine.light(id) ?: return
         val manager = modelViewer.engine.lightManager
-        update(manager, manager.getInstance(entity))
+        val instance = manager.getInstance(entity)
+        if (light[1].toInt() == 1) {
+            manager.setPosition(instance, light[6], light[7], light[8])
+        } else {
+            manager.setDirection(instance, light[9], light[10], light[11])
+        }
+        manager.setIntensity(instance, light[5])
     }
 
     private fun destroyLight(id: Int) {
+        nativeEngine.removeLight(id)
         val entity = lights.remove(id) ?: return
         modelViewer.scene.removeEntity(entity)
         modelViewer.engine.destroyEntity(entity)
@@ -858,17 +920,44 @@ class FilamentPlatformView(
 
     private fun MethodCall.string(name: String): String = argument<String>(name) ?: ""
 
+    private fun MethodCall.map(name: String): Map<*, *> =
+        argument<Map<*, *>>(name) ?: emptyMap<Any, Any>()
+
+    private fun Map<*, *>.int(name: String, fallback: Int): Int =
+        (get(name) as? Number)?.toInt() ?: fallback
+
+    private fun Map<*, *>.float(name: String, fallback: Float = 0.0f): Float =
+        (get(name) as? Number)?.toFloat() ?: fallback
+
+    private fun Map<*, *>.boolean(name: String, fallback: Boolean = false): Boolean =
+        get(name) as? Boolean ?: fallback
+
+    private fun Map<*, *>.string(name: String): String = get(name) as? String ?: ""
+
+    private fun quality(value: String): View.QualityLevel =
+        when (value.lowercase()) {
+            "medium" -> View.QualityLevel.MEDIUM
+            "high" -> View.QualityLevel.HIGH
+            "ultra" -> View.QualityLevel.ULTRA
+            else -> View.QualityLevel.LOW
+        }
+
+    private fun shadowType(value: String): View.ShadowType =
+        when (value.lowercase()) {
+            "vsm" -> View.ShadowType.VSM
+            "dpcf" -> View.ShadowType.DPCF
+            "pcss" -> View.ShadowType.PCSS
+            else -> View.ShadowType.PCF
+        }
+
     private data class NativeModelAsset(
         val asset: FilamentAsset,
-        val normalizedScale: Float,
-        val animationIndex: Int?,
-        val verticalAnchor: NativeModelVerticalAnchor,
     )
 
-    private enum class NativeModelVerticalAnchor {
-        ORIGIN,
-        CENTER,
-        BOTTOM,
+    private enum class NativeModelVerticalAnchor(val nativeValue: Int) {
+        ORIGIN(0),
+        CENTER(1),
+        BOTTOM(2),
         ;
 
         companion object {
@@ -882,9 +971,8 @@ class FilamentPlatformView(
     }
 
     private data class NativeModelInstance(
-        val asset: NativeModelAsset,
         val instance: FilamentInstance,
-        var animation: NativeAnimationPlayback?,
+        val transform: FloatArray = FloatArray(16),
     )
 
     private data class NativeTexturedMesh(
@@ -896,28 +984,6 @@ class FilamentPlatformView(
         val material: Material?,
         val materialInstance: MaterialInstance?,
         val textures: List<Texture>,
-    )
-
-    private data class NativeAnimationPlayback(
-        val animationIndex: Int,
-        val loop: Boolean,
-        val speed: Float,
-        var startedAtNanos: Long = System.nanoTime(),
-        var pausedAtNanos: Long? = null,
-    ) {
-        fun elapsedSeconds(frameTimeNanos: Long): Float {
-            val currentNanos = pausedAtNanos ?: frameTimeNanos
-            return (currentNanos - startedAtNanos) / 1_000_000_000.0f * speed
-        }
-    }
-
-    private data class NativeCameraState(
-        val targetX: Float = 0.0f,
-        val targetY: Float = 0.0f,
-        val targetZ: Float = 0.0f,
-        val yaw: Float = 0.0f,
-        val pitch: Float = 0.0f,
-        val distance: Float = 4.0f,
     )
 
     companion object {

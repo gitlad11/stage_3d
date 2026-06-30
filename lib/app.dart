@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'ui/filament_fox_scene_page.dart';
 import 'ui/physics_scene_page.dart';
 
 class JoltDemoApp extends StatelessWidget {
@@ -18,7 +19,8 @@ class JoltDemoApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: const Color(0xff07111f),
       ),
-      home: const PhysicsScenePage(),
+      home: const FilamentFoxScenePage(),
+      routes: {'/jolt': (_) => const PhysicsScenePage()},
     );
   }
 }

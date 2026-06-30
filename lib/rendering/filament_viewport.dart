@@ -4,10 +4,12 @@ import 'package:flutter/services.dart';
 
 import '../jolt_physics.dart';
 import '../scene/orbit_camera.dart';
+import 'physics_collider_debug_painter.dart';
 import 'physics_scene_painter.dart';
 import 'render_environment_controller.dart';
 import 'render_light_controller.dart';
 import 'render_model_controller.dart';
+import 'render_options_controller.dart';
 import 'render_scene_bridge.dart';
 import 'stage_camera.dart';
 import 'textured_mesh_prototype.dart';
@@ -36,7 +38,6 @@ final class FilamentViewportController {
 
   void attachFallbackCamera(OrbitCamera camera) {
     _fallbackCamera = camera;
-    camera.setCamera(_camera, notify: false);
   }
 
   /// Applies a camera preset to the active renderer view.
@@ -44,6 +45,10 @@ final class FilamentViewportController {
     _camera = camera;
     _fallbackCamera?.setCamera(camera);
     _bridge?.setCamera(camera);
+  }
+
+  void syncCameraToRenderer() {
+    _bridge?.setCamera(_camera);
   }
 
   void resetView() {
@@ -71,9 +76,14 @@ class FilamentViewport extends StatefulWidget {
     required this.fallbackCamera,
     required this.controller,
     this.environmentController,
+    this.optionsController,
     required this.lightController,
     required this.modelController,
     required this.meshPrototypes,
+    this.showDebugColliders = false,
+    this.debugBodies = const [],
+    this.debugColliderColor = const Color(0xff050505),
+    this.showFallbackPreview = true,
     this.onRendererReady,
   });
 
@@ -81,9 +91,14 @@ class FilamentViewport extends StatefulWidget {
   final OrbitCamera fallbackCamera;
   final FilamentViewportController controller;
   final RenderEnvironmentController? environmentController;
+  final RenderOptionsController? optionsController;
   final RenderLightController lightController;
   final RenderModelController modelController;
   final List<TexturedMeshPrototype> meshPrototypes;
+  final bool showDebugColliders;
+  final List<RigidBodySnapshot> debugBodies;
+  final Color debugColliderColor;
+  final bool showFallbackPreview;
   final VoidCallback? onRendererReady;
 
   @override
@@ -95,18 +110,21 @@ class _FilamentViewportState extends State<FilamentViewport> {
 
   bool get _supportsFilament =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  bool get _supportsWindowsBridge =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
   void _onPlatformViewCreated(int viewId) {
     _channel = MethodChannel('filament_view_$viewId');
     final bridge = MethodChannelRenderSceneBridge(_channel!);
     widget.controller.attachBridge(bridge);
     widget.environmentController?.attachBridge(bridge);
+    widget.optionsController?.attachBridge(bridge);
     widget.lightController.attachBridge(bridge);
     for (final (index, mesh) in widget.meshPrototypes.indexed) {
       bridge.createTexturedMesh(index + 1, mesh);
     }
     widget.modelController.attachBridge(bridge);
-    widget.controller.setCamera(widget.controller._camera);
+    widget.controller.syncCameraToRenderer();
     widget.onRendererReady?.call();
   }
 
@@ -114,30 +132,75 @@ class _FilamentViewportState extends State<FilamentViewport> {
   void dispose() {
     widget.controller.detach();
     widget.environmentController?.detach();
+    widget.optionsController?.detach();
     widget.lightController.detach();
     widget.modelController.detach();
     super.dispose();
   }
 
+  void _attachWindowsRendererBridge() {
+    _channel = const MethodChannel('filament_view_0');
+    final bridge = MethodChannelRenderSceneBridge(_channel!);
+    widget.controller.attachBridge(bridge);
+    widget.environmentController?.attachBridge(bridge);
+    widget.optionsController?.attachBridge(bridge);
+    widget.lightController.attachBridge(bridge);
+    for (final (index, mesh) in widget.meshPrototypes.indexed) {
+      bridge.createTexturedMesh(index + 1, mesh);
+    }
+    widget.modelController.attachBridge(bridge);
+    widget.controller.syncCameraToRenderer();
+    widget.onRendererReady?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_supportsFilament) {
-      return AndroidView(
-        viewType: 'jolt_filament_view',
-        onPlatformViewCreated: _onPlatformViewCreated,
+      return _withDebugOverlay(
+        AndroidView(
+          viewType: 'jolt_filament_view',
+          onPlatformViewCreated: _onPlatformViewCreated,
+        ),
       );
     }
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onScaleStart: (_) => widget.fallbackCamera.beginGesture(),
-      onScaleUpdate: widget.fallbackCamera.updateGesture,
-      child: CustomPaint(
-        painter: PhysicsScenePainter(
-          cube: widget.cube,
-          camera: widget.fallbackCamera,
-          meshPrototypes: widget.meshPrototypes,
+    if (!widget.showFallbackPreview) {
+      return const ColoredBox(color: Color(0xff05070a));
+    }
+    return _withDebugOverlay(
+      GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onScaleStart: (_) => widget.fallbackCamera.beginGesture(),
+        onScaleUpdate: widget.fallbackCamera.updateGesture,
+        child: CustomPaint(
+          painter: PhysicsScenePainter(
+            cube: widget.cube,
+            camera: widget.fallbackCamera,
+            meshPrototypes: widget.meshPrototypes,
+          ),
         ),
       ),
+    );
+  }
+
+
+  Widget _withDebugOverlay(Widget child) {
+    if (!widget.showDebugColliders) {
+      return child;
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        child,
+        IgnorePointer(
+          child: CustomPaint(
+            painter: PhysicsColliderDebugPainter(
+              bodies: widget.debugBodies,
+              camera: widget.fallbackCamera,
+              color: widget.debugColliderColor,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -145,5 +208,8 @@ class _FilamentViewportState extends State<FilamentViewport> {
   void initState() {
     super.initState();
     widget.controller.attachFallbackCamera(widget.fallbackCamera);
+    if (_supportsWindowsBridge) {
+      _attachWindowsRendererBridge();
+    }
   }
 }

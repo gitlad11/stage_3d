@@ -11,7 +11,9 @@ animation, and spatial query APIs independently inside any Flutter UI.
 
 Stage 3D currently combines
 [Jolt Physics](https://github.com/jrouwe/JoltPhysics) `v5.5.0` with
-[Filament](https://github.com/google/filament) rendering on Android.
+[Filament](https://github.com/google/filament) rendering on Android. A native
+Windows Filament backend is under active development and requires a local
+Filament Windows SDK installation.
 
 Support & Contact: [efimovi420@gmail.com](mailto:efimovi420@gmail.com)
 
@@ -72,13 +74,13 @@ stable `1.0.0` release.
 Import the public API:
 
 ```dart
-import 'package:stage_3d/jolt_physics.dart';
+import 'package:stage_3d/stage_3d.dart';
 ```
 
 Rendering prototypes have a separate entrypoint:
 
 ```dart
-import 'package:stage_3d/jolt_rendering.dart';
+import 'package:stage_3d/stage_3d.dart';
 ```
 
 Create a world, floor, and dynamic ball:
@@ -124,8 +126,7 @@ The components are regular Dart objects. Applications can attach
 included demo scene.
 
 ```dart
-import 'package:stage_3d/jolt_physics.dart';
-import 'package:stage_3d/jolt_rendering.dart';
+import 'package:stage_3d/stage_3d.dart';
 
 final world = createPhysicsWorld();
 final scene = StageScene();
@@ -264,6 +265,7 @@ instances when possible, and unload whole screens/scenes by calling
 - [Rendering meshes and shaders](doc/rendering_meshes.md)
 - [Stage scene runtime](doc/stage_scene.md)
 - [Virtual joystick](doc/virtual_joystick.md)
+- [Experimental Windows Filament backend](docs/windows_filament_backend.md)
 - Public Dart entrypoint: [`lib/jolt_physics.dart`](lib/jolt_physics.dart)
 - Rendering entrypoint: [`lib/jolt_rendering.dart`](lib/jolt_rendering.dart)
 - Collider prototypes: [`lib/physics/collider_shape.dart`](lib/physics/collider_shape.dart)
@@ -318,8 +320,23 @@ builds also show a compact top-down collider map with `BodyId` labels.
 
 | Platform | Backend |
 | --- | --- |
-| Android | Jolt Physics through `dart:ffi` |
+| Android | Jolt Physics through `dart:ffi`; Filament through Android Gradle/Maven dependencies |
+| Windows | Experimental Filament C++ backend; requires a local Google Filament Windows SDK |
 | Other Flutter targets | Lightweight preview backend |
+
+Android downloads Filament through Gradle dependencies. Windows uses the native
+C++ SDK, so install the official
+[Google Filament Windows release](https://github.com/google/filament/releases)
+and expose it before building:
+
+```powershell
+$env:STAGE_FILAMENT_ROOT = 'C:\SDKs\filament'
+flutter build windows --debug
+```
+
+For a persistent setup, add `STAGE_FILAMENT_ROOT` to your user environment
+variables. See [Experimental Windows Filament backend](docs/windows_filament_backend.md)
+for the preview flag and current limitations.
 
 The current public shape API supports `BoxShape`, `CapsuleShape`,
 `SphereShape`, `CylinderShape`, and `CompoundShape`.

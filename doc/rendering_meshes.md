@@ -6,7 +6,7 @@ pipeline is added.
 
 ## Mesh Prototype
 
-Use `TexturedMeshPrototype` from `package:stage_3d/jolt_rendering.dart`.
+Use `TexturedMeshPrototype` from `package:stage_3d/stage_3d.dart`.
 
 ```dart
 final mesh = TexturedMeshPrototype.terrain(
@@ -105,17 +105,18 @@ the source material.
 grass_wind.mat -> matc -> grass_wind.filamat
 ```
 
-The demo includes:
+The demo includes shared material sources plus compiled runtime assets:
 
-- `android/src/main/assets/materials/grass_wind.mat`
-- `android/src/main/assets/materials/grass_wind.shader`
-- `android/src/main/assets/materials/grass_wind.filamat`
+- `assets/material_sources/grass_wind.mat`
+- `assets/material_sources/grass_wind.shader`
+- `assets/materials/grass_wind.filamat`
 
 Use it from Dart:
 
 ```dart
 final material = MeshMaterialPrototype.shaderSource(
-  shaderAssetPath: 'materials/grass_wind.shader',
+  shaderAssetPath: 'material_sources/grass_wind.shader',
+  filamatAssetPath: 'materials/grass_wind.filamat',
   texture: grassAtlasTexture,
   uniforms: [
     MaterialShaderUniform.float('windStrength', 0.18),
@@ -125,8 +126,9 @@ final material = MeshMaterialPrototype.shaderSource(
 );
 ```
 
-`shaderSource` derives `materials/grass_wind.filamat` automatically. If a
-project already has a compiled file, it can point to it directly:
+`shaderSource` can derive the `.filamat` path automatically when source and
+compiled files share a folder. This project keeps readable sources and runtime
+assets in separate folders, so demos pass `filamatAssetPath` explicitly:
 
 ```dart
 final material = MeshMaterialPrototype.filamat(
@@ -146,7 +148,8 @@ renderer binds that texture to a sampler named `albedo`.
 
 ```dart
 final material = MeshMaterialPrototype.shaderSource(
-  shaderAssetPath: 'materials/my_water.shader',
+  shaderAssetPath: 'material_sources/my_water.shader',
+  filamatAssetPath: 'materials/my_water.filamat',
   texture: albedoTexture,
 );
 ```
@@ -181,7 +184,8 @@ const waterNormal = MeshTexturePrototype.asset(
 );
 
 final material = MeshMaterialPrototype.shaderSource(
-  shaderAssetPath: 'materials/water.shader',
+  shaderAssetPath: 'material_sources/water.shader',
+  filamatAssetPath: 'materials/water.filamat',
   texture: waterAlbedo,
   textureUniforms: const {
     'normalMap': waterNormal,
@@ -215,7 +219,7 @@ parameters : [
 
 The current Android backend supports:
 
-- `.mat` and `.shader` source files in Android assets;
+- `.mat` and `.shader` source files in shared Flutter assets;
 - build-time compilation to `.filamat`;
 - direct use of precompiled `.filamat` assets;
 - main `albedo` texture;
@@ -224,18 +228,19 @@ The current Android backend supports:
 
 Limitations:
 
-- material source files must be available at Android build time;
+- material source files must be available at build time;
 - runtime loading uses compiled `.filamat`, not raw `.mat` / `.shader`;
-- iOS, desktop, and web renderers do not yet implement this Filament material
-  pipeline;
+- iOS and web renderers do not yet implement this Filament material pipeline;
 - sampler and uniform names must exactly match the material source.
 
 ## Compiling Materials
 
 The Android Gradle project has a `compileFilamentMaterials` task. It downloads
 the matching Filament `matc` compiler from Maven for the current host, then
-scans `android/src/main/assets/materials` for `.mat` and `.shader` files and
-writes matching `.filamat` files before Android asset merging.
+scans `assets/material_sources` for `.mat` and `.shader` files and writes
+matching `.filamat` files into Android assets before Android asset merging.
+The Windows CMake build scans the same source directory and writes OpenGL
+desktop `.filamat` files into `assets/materials`.
 
 ```powershell
 cd android

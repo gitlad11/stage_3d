@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 
 import '../physics/physics_transform.dart';
 import 'model_asset.dart';
@@ -128,11 +129,39 @@ final class RenderModelController {
     _bridge?.destroyModelInstance(instance.id);
   }
 
+  /// Releases [asset] after all of its instances have been destroyed.
+  void unloadAsset(RenderModelAsset asset) {
+    final isUsed = _instances.values.any(
+      (instance) => instance.asset.id.value == asset.id.value,
+    );
+    if (isUsed) {
+      throw StateError(
+        'Cannot unload model asset ${asset.id.value} while instances use it.',
+      );
+    }
+    if (_assets.remove(asset.id.value) == null) {
+      return;
+    }
+    _bridge?.unloadModelAsset(asset.id);
+  }
+
   void _loadBridgeAsset(RenderModelAsset asset) {
-    _bridge?.loadModelAsset(asset);
+    _bridge?.loadModelAsset(asset).catchError((Object error, StackTrace stack) {
+      debugPrint(
+        'Stage 3D renderer failed to load ${asset.settings.assetPath}: $error',
+      );
+    });
   }
 
   void _createBridgeInstance(RenderModelInstance instance) {
-    _bridge?.createModelInstance(instance);
+    _bridge?.createModelInstance(instance).catchError((
+      Object error,
+      StackTrace stack,
+    ) {
+      debugPrint(
+        'Stage 3D renderer failed to create model instance '
+        '${instance.id.value}: $error',
+      );
+    });
   }
 }

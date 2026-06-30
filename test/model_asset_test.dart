@@ -1,8 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:stage_3d/jolt_physics.dart';
-import 'package:stage_3d/jolt_rendering.dart';
 import 'package:stage_3d/physics/collider_shape.dart' as physics;
+import 'package:stage_3d/stage_3d.dart';
 
 void main() {
   test('ModelAsset serializes GLB renderer settings', () {
@@ -48,6 +47,22 @@ void main() {
     models.setTransform(instance, updated);
 
     expect(instance.transform, same(updated));
+  });
+
+  test('RenderModelController requires instances to be destroyed before unload', () {
+    final models = RenderModelController();
+    final asset = models.loadAsset(
+      const ModelAsset(assetPath: 'models/room.glb'),
+    );
+    final instance = models.createInstance(
+      asset,
+      transform: const PhysicsTransform(position: Vector3.zero),
+    );
+
+    expect(() => models.unloadAsset(asset), throwsStateError);
+
+    models.destroyInstance(instance);
+    expect(() => models.unloadAsset(asset), returnsNormally);
   });
 
   test('ModelAnimation reads native clip metadata', () {
@@ -100,7 +115,7 @@ void main() {
 
     expect(mesh.vertices, hasLength(45));
     expect(mesh.indices, hasLength(192));
-    expect(mesh.indices.take(6), [0, 1, 10, 0, 10, 9]);
+    expect(mesh.indices.take(6), [0, 10, 1, 0, 9, 10]);
     expect(mesh.vertices.first.position.x, -2);
     expect(mesh.vertices.first.normal.y, 1);
     expect(mesh.vertices.first.uv.dx, 0);
@@ -115,7 +130,8 @@ void main() {
 
   test('MeshMaterialPrototype serializes Filament mat source paths', () {
     final material = MeshMaterialPrototype.filamentSource(
-      matAssetPath: 'materials/terrain.mat',
+      matAssetPath: 'material_sources/terrain.mat',
+      filamatAssetPath: 'materials/terrain.filamat',
       baseColor: const Color(0xffa7f3d0),
       roughnessFactor: 0.7,
       doubleSided: false,
@@ -128,18 +144,19 @@ void main() {
       'roughnessFactor': 0.7,
       'doubleSided': false,
       'shader': {
-        'sourceAssetPath': 'materials/terrain.mat',
+        'sourceAssetPath': 'material_sources/terrain.mat',
         'filamatAssetPath': 'materials/terrain.filamat',
         'uniforms': [],
       },
-      'matAssetPath': 'materials/terrain.mat',
+      'matAssetPath': 'material_sources/terrain.mat',
       'filamatAssetPath': 'materials/terrain.filamat',
     });
   });
 
   test('MeshMaterialPrototype serializes custom shader source paths', () {
     final material = MeshMaterialPrototype.shaderSource(
-      shaderAssetPath: 'materials/grass_wind.shader',
+      shaderAssetPath: 'material_sources/grass_wind.shader',
+      filamatAssetPath: 'materials/grass_wind.filamat',
       uniforms: [
         MaterialShaderUniform.float('windStrength', 0.25),
         MaterialShaderUniform.float('windScale', 3),
@@ -155,7 +172,7 @@ void main() {
       'roughnessFactor': 0.85,
       'doubleSided': true,
       'shader': {
-        'sourceAssetPath': 'materials/grass_wind.shader',
+        'sourceAssetPath': 'material_sources/grass_wind.shader',
         'filamatAssetPath': 'materials/grass_wind.filamat',
         'uniforms': [
           {'name': 'windStrength', 'type': 'float', 'value': 0.25},
@@ -183,7 +200,8 @@ void main() {
       ),
     );
     final material = MeshMaterialPrototype.shaderSource(
-      shaderAssetPath: 'materials/water.shader',
+      shaderAssetPath: 'material_sources/water.shader',
+      filamatAssetPath: 'materials/water.filamat',
       textureUniforms: const {'normalMap': normalTexture},
     );
 

@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:stage_3d/jolt_physics.dart';
-import 'package:stage_3d/jolt_rendering.dart';
+import 'package:stage_3d/stage_3d.dart';
 
 void main() {
   test('StageObject owns a transform component by default', () {
@@ -208,9 +207,15 @@ final class _StageRecordingBridge implements RenderSceneBridge {
   Future<void> setEnvironment(RenderEnvironment environment) async {}
 
   @override
+  Future<void> setRenderOptions(RenderOptions options) async {}
+
+  @override
   Future<void> loadModelAsset(RenderModelAsset asset) async {
     events.add('loadAsset:${asset.id.value}');
   }
+
+  @override
+  Future<void> unloadModelAsset(ModelAssetId assetId) async {}
 
   @override
   Future<void> createModelInstance(RenderModelInstance instance) async {

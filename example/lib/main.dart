@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart' hide BoxShape;
 import 'package:flutter/scheduler.dart';
-import 'package:stage_3d/jolt_physics.dart';
-import 'package:stage_3d/jolt_rendering.dart';
+import 'package:stage_3d/stage_3d.dart';
 
 const _wideCamera = StageCamera.orbit(
   target: Vector3(0, 0.5, 0),

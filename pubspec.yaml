@@ -30,4 +30,13 @@ flutter:
         package: com.stage3d.stage_3d
         pluginClass: Stage3DPlugin
 
+  assets:
+    - assets/models/Fox.glb
+    - assets/textures/grass_pbr_atlas.png
+    - assets/material_sources/grass_wind.mat
+    - assets/material_sources/grass_wind.shader
+    - assets/material_sources/water.shader
+    - assets/materials/grass_wind.filamat
+    - assets/materials/water.filamat
+
   uses-material-design: true

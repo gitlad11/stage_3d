@@ -15,8 +15,23 @@ set(PROFILER_IN_DEBUG_AND_RELEASE OFF CACHE BOOL "" FORCE)
 set(ENABLE_OBJECT_STREAM OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(third_party/JoltPhysics/Build JoltPhysics)
+set(STAGE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory(
+  ../../../../../native
+  stage_native_core
+)
 
-add_library(jolt_ffi SHARED jolt_ffi.cpp)
+add_library(
+  jolt_ffi
+  SHARED
+  jolt_ffi.cpp
+  ../../../../../native/platform/android/stage_android_jni.cpp
+  $<TARGET_OBJECTS:stage_native_core>
+)
 target_link_libraries(jolt_ffi PRIVATE Jolt)
-target_include_directories(jolt_ffi PRIVATE third_party/JoltPhysics)
-
+target_include_directories(
+  jolt_ffi
+  PRIVATE
+    third_party/JoltPhysics
+    ../../../../../native/include
+)

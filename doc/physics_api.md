@@ -7,7 +7,7 @@ physics layer calls Jolt Physics through a C++ `dart:ffi` adapter.
 Import the public API from one entrypoint:
 
 ```dart
-import 'package:stage_3d/jolt_physics.dart';
+import 'package:stage_3d/stage_3d.dart';
 ```
 
 ## Coordinate System
@@ -220,7 +220,7 @@ Visual assets are separate from rigid bodies. Register a GLB file once, then
 create one or more instances:
 
 ```dart
-import 'package:stage_3d/jolt_rendering.dart';
+import 'package:stage_3d/stage_3d.dart';
 
 final models = RenderModelController();
 

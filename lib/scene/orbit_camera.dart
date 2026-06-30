@@ -84,12 +84,17 @@ final class OrbitCamera extends ChangeNotifier {
 
   Offset project(Vector3 point, Size size) {
     final view = _worldToCamera(point);
-    final depth = view.z + _distance;
+    final rawDepth = view.z + _distance;
+    final depth = rawDepth.isFinite && rawDepth > 0.1 ? rawDepth : 0.1;
     final scale = math.min(size.width, size.height) * 0.9 / depth;
-    return Offset(
+    final projected = Offset(
       size.width * 0.5 + view.x * scale,
       size.height * 0.68 - view.y * scale,
     );
+    if (!projected.dx.isFinite || !projected.dy.isFinite) {
+      return Offset(size.width * 0.5, size.height * 0.68);
+    }
+    return projected;
   }
 
   Vector3 _worldToCamera(Vector3 point) {

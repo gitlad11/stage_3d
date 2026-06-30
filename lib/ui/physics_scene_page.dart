@@ -44,7 +44,7 @@ class _PhysicsScenePageState extends State<PhysicsScenePage>
   var _selectedAnimationIndex = 0;
   var _animationStatus = 'Waiting for renderer';
   var _showInspector = false;
-  var _showColliders = false;
+  var _showColliders = kDebugMode;
   Duration? _lastTick;
 
   @override
@@ -190,6 +190,8 @@ class _PhysicsScenePageState extends State<PhysicsScenePage>
                 lightController: _lightController,
                 modelController: _modelController,
                 meshPrototypes: _groundMeshPrototypes,
+                showDebugColliders: kDebugMode && _showColliders,
+                debugBodies: _scene.debugBodies,
                 onRendererReady: _loadAnimations,
               ),
             ),

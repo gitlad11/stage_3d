@@ -9,8 +9,11 @@ project(runner LANGUAGES CXX)
 add_executable(${BINARY_NAME} WIN32
   "flutter_window.cpp"
   "main.cpp"
+  "stage_windows_renderer_bridge.cpp"
   "utils.cpp"
   "win32_window.cpp"
+  "../../native/core/stage_engine.cpp"
+  "../../native/platform/windows/stage_filament_renderer.cpp"
   "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
   "Runner.rc"
   "runner.exe.manifest"
@@ -34,7 +37,17 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 # dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
 target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
+target_link_libraries(${BINARY_NAME} PRIVATE "windowscodecs.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
+target_include_directories(
+  ${BINARY_NAME}
+  PRIVATE
+    "${CMAKE_SOURCE_DIR}/../native/include"
+    "${CMAKE_SOURCE_DIR}/../native/platform/windows"
+)
+
+include("${CMAKE_SOURCE_DIR}/../native/cmake/StageFilamentWindows.cmake")
+stage_enable_filament_windows(${BINARY_NAME})
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)

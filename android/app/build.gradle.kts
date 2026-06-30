@@ -4,6 +4,13 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+repositories {
+    google()
+    mavenCentral()
+}
+
+layout.buildDirectory.set(rootProject.layout.projectDirectory.dir("../build/app"))
+
 android {
     namespace = "com.example.jolt_physics_dart"
     compileSdk = flutter.compileSdkVersion
@@ -58,6 +65,7 @@ flutter {
 }
 
 val filamentVersion = "1.71.5"
+val filamentMaterialSourcesDir = file("../../assets/material_sources")
 val filamentMaterialsDir = file("src/main/assets/materials")
 val hostOs = System.getProperty("os.name").lowercase()
 val hostArch = System.getProperty("os.arch").lowercase()
@@ -81,23 +89,24 @@ val compileFilamentMaterials by tasks.registering {
     group = "filament"
     description = "Compiles Filament .mat material sources into .filamat Android assets."
 
-    inputs.files(fileTree(filamentMaterialsDir) { include("*.mat", "*.shader") })
+    inputs.files(fileTree(filamentMaterialSourcesDir) { include("*.mat", "*.shader") })
     inputs.files(filamentMatc)
     outputs.dir(filamentMaterialsDir)
 
-    onlyIf { filamentMaterialsDir.exists() }
+    onlyIf { filamentMaterialSourcesDir.exists() }
 
     doLast {
         val matc = filamentMatc.singleFile
         matc.setExecutable(true)
-        val sources = filamentMaterialsDir
+        filamentMaterialsDir.mkdirs()
+        val sources = filamentMaterialSourcesDir
             .listFiles { file -> file.extension == "mat" || file.extension == "shader" }
             .orEmpty()
             .groupBy { it.nameWithoutExtension }
             .values
             .map { files -> files.firstOrNull { it.extension == "mat" } ?: files.first() }
         sources.forEach { source ->
-                val output = source.resolveSibling("${source.nameWithoutExtension}.filamat")
+                val output = filamentMaterialsDir.resolve("${source.nameWithoutExtension}.filamat")
                 providers.exec {
                     commandLine(
                         matc.absolutePath,

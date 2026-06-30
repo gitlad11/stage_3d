@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:stage_3d/jolt_physics.dart';
-import 'package:stage_3d/jolt_rendering.dart';
+import 'package:stage_3d/stage_3d.dart';
 
 void main() {
   test('RenderModelController sends model operations through bridge', () async {
@@ -19,12 +18,16 @@ void main() {
       const PhysicsTransform(position: Vector3(3, 0, 4)),
     );
     models.playAnimation(instance, animationIndex: 1);
+    models.destroyInstance(instance);
+    models.unloadAsset(asset);
 
     expect(bridge.events, [
       'loadAsset:1',
       'createInstance:1',
       'setTransform:1',
       'playAnimation:1',
+      'destroyInstance:1',
+      'unloadAsset:1',
     ]);
   });
 
@@ -115,8 +118,18 @@ final class _RecordingBridge implements RenderSceneBridge {
   }
 
   @override
+  Future<void> setRenderOptions(RenderOptions options) async {
+    events.add('setRenderOptions');
+  }
+
+  @override
   Future<void> loadModelAsset(RenderModelAsset asset) async {
     events.add('loadAsset:${asset.id.value}');
+  }
+
+  @override
+  Future<void> unloadModelAsset(ModelAssetId assetId) async {
+    events.add('unloadAsset:${assetId.value}');
   }
 
   @override
