@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:stage_3d/main.dart';
 import 'package:stage_3d/stage_3d.dart';
 
 void main() {
@@ -37,10 +36,4 @@ void main() {
     expect(controller.value, JoystickValue.zero);
   });
 
-  testWidgets('showcase exposes the reusable orbit joystick', (tester) async {
-    await tester.pumpWidget(const JoltDemoApp());
-    await tester.pump();
-
-    expect(find.byKey(const ValueKey('orbit-joystick')), findsOneWidget);
-  });
 }

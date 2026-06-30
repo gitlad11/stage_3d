@@ -11,9 +11,10 @@ animation, and spatial query APIs independently inside any Flutter UI.
 
 Stage 3D currently combines
 [Jolt Physics](https://github.com/jrouwe/JoltPhysics) `v5.5.0` with
-[Filament](https://github.com/google/filament) rendering on Android. A native
-Windows Filament backend is under active development and requires a local
-Filament Windows SDK installation.
+[Filament](https://github.com/google/filament) rendering on Android and
+Windows. The Android backend uses Filament's Android bindings; the Windows
+backend uses native Filament C++ and requires a local Filament Windows SDK
+installation.
 
 Support & Contact: [efimovi420@gmail.com](mailto:efimovi420@gmail.com)
 
@@ -25,14 +26,14 @@ If Stage 3D helps your project, please consider starring the repository.
 
 ## Native Backends
 
-Stage 3D ships with native Android integrations for two separate systems:
+Stage 3D ships with native integrations for two separate systems:
 
 - **Jolt Physics** through a C++ `dart:ffi` adapter for simulation, rigid
   bodies, collider shapes, compound shapes, impulses, kinematic motion, and ray
   casts.
-- **Filament** through an Android Platform View for `.glb` rendering, model
-  instances, animations, lights, environment settings, procedural meshes, and
-  shader materials.
+- **Filament** through an Android Platform View and a Windows C++ backend for
+  `.glb` rendering, model instances, animations, lights, environment settings,
+  render options, procedural meshes, and shader materials.
 
 The APIs are intentionally separate. You can use only Jolt, only Filament, the
 included `StageScene` component runtime, or your own scene layer.
@@ -45,7 +46,7 @@ included `StageScene` component runtime, or your own scene layer.
 | Rigid bodies | Static, kinematic, and dynamic bodies |
 | Collider shapes | Box, capsule, sphere, cylinder, and compound colliders |
 | Spatial queries | Finite Jolt ray casts with closest-hit results |
-| Native rendering | Filament Android viewport |
+| Native rendering | Filament Android viewport and Windows C++ backend |
 | 3D assets | Reusable `.glb` assets and independent visual instances |
 | Animations | Inspect clips and control per-instance playback |
 | Lighting | Directional and movable point lights |
@@ -64,20 +65,14 @@ included `StageScene` component runtime, or your own scene layer.
 
 ## Project Status
 
-Stage 3D is an experimental alpha. The native Jolt and Filament backend
-currently targets Android. Other Flutter targets use a lightweight preview
-physics backend for tests and UI iteration. Public APIs may change before a
-stable `1.0.0` release.
+Stage 3D is an experimental alpha. Native Filament rendering currently targets
+Android and Windows. Native Jolt physics currently targets Android; other
+Flutter targets use a lightweight preview physics backend for tests and UI
+iteration. Public APIs may change before a stable `1.0.0` release.
 
 ## Quick Start
 
 Import the public API:
-
-```dart
-import 'package:stage_3d/stage_3d.dart';
-```
-
-Rendering prototypes have a separate entrypoint:
 
 ```dart
 import 'package:stage_3d/stage_3d.dart';
@@ -265,7 +260,7 @@ instances when possible, and unload whole screens/scenes by calling
 - [Rendering meshes and shaders](doc/rendering_meshes.md)
 - [Stage scene runtime](doc/stage_scene.md)
 - [Virtual joystick](doc/virtual_joystick.md)
-- [Experimental Windows Filament backend](docs/windows_filament_backend.md)
+- [Windows Filament backend](docs/windows_filament_backend.md)
 - Public Dart entrypoint: [`lib/jolt_physics.dart`](lib/jolt_physics.dart)
 - Rendering entrypoint: [`lib/jolt_rendering.dart`](lib/jolt_rendering.dart)
 - Collider prototypes: [`lib/physics/collider_shape.dart`](lib/physics/collider_shape.dart)
@@ -297,10 +292,12 @@ Jolt body transform -> Flutter scene -> MethodChannel -> Filament -> Fox.glb
 Jolt calculates physics. Filament renders the visual model. The two systems are
 kept separate so a visual model can use the collider that best fits gameplay.
 
-Procedural mesh prototypes currently serialize from Dart into the Android
-Filament bridge as temporary GLB assets. They support generated planes,
-heightmapped terrain, atlas texture crops, recalculated normals, basic PBR
-settings, optional collider metadata, and custom Filament shader materials.
+Procedural mesh prototypes serialize from Dart into each Filament backend. The
+Android bridge currently converts them into temporary in-memory GLB assets,
+while the Windows backend creates native Filament vertex and index buffers.
+They support generated planes, heightmapped terrain, atlas texture crops,
+recalculated normals, basic PBR settings, optional collider metadata, and custom
+Filament shader materials.
 Dart can describe `.mat` / `.shader` sources, compiled `.filamat` assets,
 scalar uniforms, color uniforms, and named texture uniforms such as normal or
 roughness maps.
@@ -311,17 +308,16 @@ roughness maps.
 flutter run
 ```
 
-The demo supports orbit gestures, pinch zoom, pause, model reset, and view
-reset. Its directional light and movable blue point light are both created from
-Dart prototypes; the point light follows the Jolt body every frame. Debug
-builds also show a compact top-down collider map with `BodyId` labels.
+The default demo opens a Filament fox scene with a textured floor, environment
+settings, render options, animation, camera controls, and Dart-created lights.
+The older Jolt physics scene is still available from the `/jolt` route.
 
 ## Current Platform Support
 
 | Platform | Backend |
 | --- | --- |
 | Android | Jolt Physics through `dart:ffi`; Filament through Android Gradle/Maven dependencies |
-| Windows | Experimental Filament C++ backend; requires a local Google Filament Windows SDK |
+| Windows | Filament C++ backend; requires a local Google Filament Windows SDK |
 | Other Flutter targets | Lightweight preview backend |
 
 Android downloads Filament through Gradle dependencies. Windows uses the native
@@ -335,8 +331,8 @@ flutter build windows --debug
 ```
 
 For a persistent setup, add `STAGE_FILAMENT_ROOT` to your user environment
-variables. See [Experimental Windows Filament backend](docs/windows_filament_backend.md)
-for the preview flag and current limitations.
+variables. See [Windows Filament backend](docs/windows_filament_backend.md) for
+setup notes and current limitations.
 
 The current public shape API supports `BoxShape`, `CapsuleShape`,
 `SphereShape`, `CylinderShape`, and `CompoundShape`.
