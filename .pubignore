@@ -1,6 +1,7 @@
 .dart_tool/
 .idea/
 /build/
+stage3d_treepack.png
 docs/
 *.iml
 android/.gradle/

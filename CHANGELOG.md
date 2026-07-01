@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0-alpha.6
+## 0.1.0-alpha.7
 
 - Fixed package ignore rules so root build output is excluded without excluding
   required nested native build files.
