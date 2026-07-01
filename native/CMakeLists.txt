@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(stage_native_core LANGUAGES CXX)
 
 option(STAGE_BUILD_TESTS "Build Stage native core tests." ON)
+option(STAGE_BUILD_NATIVE_DEMO "Build standalone native Filament demo." OFF)
 
 add_library(stage_native_core OBJECT
   core/stage_engine.cpp
@@ -25,4 +26,8 @@ if(STAGE_BUILD_TESTS)
   target_link_libraries(stage_native_core_test PRIVATE stage_native_core)
 
   add_test(NAME stage_native_core_test COMMAND stage_native_core_test)
+endif()
+
+if(STAGE_BUILD_NATIVE_DEMO AND WIN32)
+  add_subdirectory(benchmarks)
 endif()

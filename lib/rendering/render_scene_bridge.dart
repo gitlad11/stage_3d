@@ -147,6 +147,8 @@ final class MethodChannelRenderSceneBridge implements RenderSceneBridge {
       channel.invokeMethod<void>('createModelInstance', {
         'assetId': instance.asset.id.value,
         'instanceId': instance.id.value,
+        'castShadows': instance.asset.settings.castShadows,
+        'receiveShadows': instance.asset.settings.receiveShadows,
         ..._transformMessage(instance.transform),
         if (instance.animation case final animation?) ...animation.toMessage(),
       });

@@ -54,7 +54,8 @@ is no longer needed.
 
 Use these rules:
 
-- `RenderModelController.loadAsset(...)` registers a reusable GLB asset.
+- `RenderModelController.loadAsset(...)` registers a reusable GLB asset or a
+  static OBJ mesh on Android.
 - `RenderModelController.createInstance(...)` creates one visible instance of
   that asset.
 - `RenderModelController.destroyInstance(...)` removes a visible instance from

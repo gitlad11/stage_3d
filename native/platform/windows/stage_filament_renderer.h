@@ -111,7 +111,11 @@ class StageFilamentRenderer {
       uint32_t byte_count,
       ModelBounds* out_bounds = nullptr);
   bool UnloadModelAsset(int32_t asset_id);
-  bool CreateModelInstance(int32_t instance_id, int32_t asset_id);
+  bool CreateModelInstance(
+      int32_t instance_id,
+      int32_t asset_id,
+      bool cast_shadows = true,
+      bool receive_shadows = true);
   void DestroyModelInstance(int32_t instance_id);
   bool SetModelTransform(int32_t instance_id, const float* matrix_16);
   std::vector<ModelAnimation> GetModelAnimations(int32_t instance_id) const;

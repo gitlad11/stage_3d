@@ -216,8 +216,8 @@ renderer-side light prototypes, see [Rendering lights](rendering_lights.md).
 
 ## Reusable Model Assets
 
-Visual assets are separate from rigid bodies. Register a GLB file once, then
-create one or more instances:
+Visual assets are separate from rigid bodies. Register a GLB or static OBJ file
+once, then create one or more instances:
 
 ```dart
 import 'package:stage_3d/stage_3d.dart';
@@ -285,7 +285,8 @@ models.stopAnimation(character);
 ```
 
 Instances created from the same GLB asset keep independent playback state. An
-optional `ModelAsset.animationIndex` selects the initial looping clip.
+optional `ModelAsset.animationIndex` selects the initial looping clip. OBJ
+assets are loaded as static meshes, so they do not expose animation clips.
 
 ### Architectural Scenes
 
@@ -303,8 +304,13 @@ A room shell does not need a rigid body when it is only displayed. Add Jolt
 colliders for walls, floors, doors, or furniture only when users need collision,
 movement, or interaction.
 
-Filament currently loads `.glb` files from Android assets. Convert `.fbx`,
-`.obj`, `.blend`, and other source formats to `.glb` during content preparation.
+Filament currently loads `.glb` files from Android assets directly. The bundled
+Android viewport also accepts `.obj` files with positions, UVs, normals, and
+polygon faces; it triangulates them and generates missing flat normals at load
+time. If the OBJ references a packaged `.mtl` file, basic diffuse colors,
+alpha, and shininess are converted into glTF PBR material factors. Convert
+`.fbx`, `.blend`, animated OBJ pipelines, texture-heavy OBJ assets, and advanced
+materials to `.glb` during content preparation.
 
 ## Ray Casting
 

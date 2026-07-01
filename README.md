@@ -212,6 +212,39 @@ viewport.setCamera(closeCamera);
 The same controller API updates the Android Filament camera and the Flutter
 fallback preview camera.
 
+## Model Conversion
+
+Stage 3D renders GLB assets in production through Filament's glTF pipeline.
+Designers may still keep source models as OBJ, FBX, DAE, or BLEND files and
+convert them before running the app:
+
+```sh
+dart run stage_3d:convert_models --input assets/source_models --output assets/models/generated
+```
+
+The converter command looks for Blender by default, so install Blender and add
+it to `PATH`, or pass its executable explicitly:
+
+```sh
+dart run stage_3d:convert_models assets/source_models/tree.obj --blender "C:\Program Files\Blender Foundation\Blender 4.4\blender.exe"
+```
+
+Generated models are written to the consuming app's output folder, not into the
+Stage 3D package. The command writes a small manifest beside the generated GLB
+files and, by default, removes stale GLB files that it previously generated when
+the matching source model is no longer present. Use `--no-clean` to keep old
+generated files. When converting a directory, nested source folders are mirrored
+under the output directory. Use `--force` if an OBJ material or texture changed
+without touching the source model file.
+
+Add the generated folder to the Flutter app's assets:
+
+```yaml
+flutter:
+  assets:
+    - assets/models/generated/
+```
+
 ## Resource Lifetime
 
 Stage 3D uses native C++ resources through Jolt and Filament. Dart garbage

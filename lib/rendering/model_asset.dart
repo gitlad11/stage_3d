@@ -2,9 +2,11 @@ import '../physics/physics_transform.dart';
 
 /// Reusable description of a visual model available to the renderer.
 ///
-/// Filament currently loads binary glTF (`.glb`) files from Android or Flutter
-/// assets.
-/// Convert FBX, OBJ, and Blender files to GLB before packaging them.
+/// Filament loads binary glTF (`.glb`) files from Android or Flutter assets.
+/// The bundled Android viewport can also load static Wavefront OBJ (`.obj`)
+/// meshes by converting them to a minimal runtime GLB before handing them to
+/// Filament. If an OBJ references an MTL file, basic diffuse material colors
+/// are loaded from the neighboring packaged `.mtl` asset.
 final class ModelAsset {
   /// Creates a model asset prototype.
   const ModelAsset({
@@ -12,9 +14,11 @@ final class ModelAsset {
     this.normalizedScale = 1,
     this.animationIndex,
     this.verticalAnchor = ModelVerticalAnchor.center,
+    this.castShadows = true,
+    this.receiveShadows = true,
   }) : assert(normalizedScale > 0);
 
-  /// Asset path, for example `assets/models/Fox.glb` from a Flutter app.
+  /// Asset path, for example `assets/models/Fox.glb` or `models/chair.obj`.
   final String assetPath;
 
   /// Scale applied after fitting the model inside a normalized unit cube.
@@ -26,16 +30,24 @@ final class ModelAsset {
   /// Which vertical point of the model bounds is placed at the transform.
   final ModelVerticalAnchor verticalAnchor;
 
+  /// Whether instances of this asset render into shadow maps.
+  final bool castShadows;
+
+  /// Whether instances of this asset receive scene shadows.
+  final bool receiveShadows;
+
   /// Serializes asset settings for the native renderer bridge.
   Map<String, Object?> toMessage() => {
     'assetPath': assetPath,
     'normalizedScale': normalizedScale,
     'animationIndex': animationIndex,
     'verticalAnchor': verticalAnchor.name,
+    'castShadows': castShadows,
+    'receiveShadows': receiveShadows,
   };
 }
 
-/// Vertical point of a GLB model used when applying a transform position.
+/// Vertical point of a model used when applying a transform position.
 enum ModelVerticalAnchor {
   /// Preserve the model's original root/origin point.
   origin,
@@ -103,7 +115,7 @@ final class RenderModelInstance {
   ModelAnimationPlayback? animation;
 }
 
-/// One animation clip embedded in a GLB model.
+/// One animation clip embedded in an animated model asset.
 final class ModelAnimation {
   /// Creates animation metadata returned by Filament.
   const ModelAnimation({

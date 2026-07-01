@@ -221,7 +221,12 @@ class FilamentPlatformView(
         val assetId = call.int("assetId")
         if (assets.containsKey(assetId)) return
         val assetPath = call.string("assetPath")
-        val bytes = openAssetBytes(assetPath)
+        val bytes =
+            if (assetPath.substringAfterLast('.', "").lowercase() == "obj") {
+                buildObjModelGlb(assetPath, String(openAssetBytes(assetPath), Charsets.UTF_8))
+            } else {
+                openAssetBytes(assetPath)
+            }
         val asset = assetLoader.createAsset(ByteBuffer.wrap(bytes)) ?: return
         resourceLoader.loadResources(asset)
         val bounds = asset.boundingBox
@@ -662,6 +667,319 @@ class FilamentPlatformView(
         return buildGlb(json, bin.array())
     }
 
+    private fun buildObjModelGlb(assetPath: String, source: String): ByteArray {
+        val positions = mutableListOf<ObjVec3>()
+        val texcoords = mutableListOf<ObjVec2>()
+        val normals = mutableListOf<ObjVec3>()
+        val materialLibraries = mutableListOf<String>()
+        val meshes = linkedMapOf<String, ObjMeshData>()
+        var currentMaterialName = ""
+
+        fun currentMesh(): ObjMeshData =
+            meshes.getOrPut(currentMaterialName) { ObjMeshData(currentMaterialName) }
+
+        for (rawLine in source.lineSequence()) {
+            val line = rawLine.substringBefore('#').trim()
+            if (line.isEmpty()) continue
+            val parts = line.split(Regex("\\s+"))
+            when (parts.firstOrNull()) {
+                "mtllib" -> {
+                    materialLibraries += parts.drop(1).joinToString(" ")
+                }
+                "usemtl" -> {
+                    currentMaterialName = parts.drop(1).joinToString(" ")
+                }
+                "v" -> {
+                    if (parts.size < 4) continue
+                    positions += ObjVec3(
+                        parts[1].toFloatOrNull() ?: 0.0f,
+                        parts[2].toFloatOrNull() ?: 0.0f,
+                        parts[3].toFloatOrNull() ?: 0.0f,
+                    )
+                }
+                "vt" -> {
+                    if (parts.size < 3) continue
+                    texcoords += ObjVec2(
+                        parts[1].toFloatOrNull() ?: 0.0f,
+                        parts[2].toFloatOrNull() ?: 0.0f,
+                    )
+                }
+                "vn" -> {
+                    if (parts.size < 4) continue
+                    normals += normalize(
+                        ObjVec3(
+                            parts[1].toFloatOrNull() ?: 0.0f,
+                            parts[2].toFloatOrNull() ?: 0.0f,
+                            parts[3].toFloatOrNull() ?: 0.0f,
+                        ),
+                    )
+                }
+                "f" -> {
+                    val refs = parts.drop(1).mapNotNull {
+                        parseObjFaceRef(it, positions.size, texcoords.size, normals.size)
+                    }
+                    if (refs.size < 3) continue
+                    for (index in 1 until refs.lastIndex) {
+                        appendObjTriangle(
+                            refs[0],
+                            refs[index],
+                            refs[index + 1],
+                            positions,
+                            texcoords,
+                            normals,
+                            currentMesh(),
+                        )
+                    }
+                }
+            }
+        }
+
+        val renderableMeshes =
+            meshes.values.filter { it.positions.isNotEmpty() && it.indices.isNotEmpty() }
+        if (renderableMeshes.isEmpty()) {
+            throw IllegalArgumentException("OBJ asset does not contain renderable faces.")
+        }
+
+        val loadedMaterials = loadObjMaterials(assetPath, materialLibraries)
+        val fallbackMaterial =
+            if (renderableMeshes.all { it.materialName.isEmpty() } && loadedMaterials.isNotEmpty()) {
+                loadedMaterials.values.first()
+            } else {
+                ObjMaterial()
+            }
+        val materials = renderableMeshes.map { mesh ->
+            loadedMaterials[mesh.materialName] ?: fallbackMaterial
+        }
+        val materialJson = materials.joinToString(",") { it.toGltfJson() }
+
+        var offset = 0
+        val buffers = renderableMeshes.map { mesh ->
+            val positionOffset = align4(offset)
+            val positionBytes = mesh.positions.size * 4
+            val normalOffset = align4(positionOffset + positionBytes)
+            val normalBytes = mesh.normals.size * 4
+            val uvOffset = align4(normalOffset + normalBytes)
+            val uvBytes = mesh.texcoords.size * 4
+            val indexOffset = align4(uvOffset + uvBytes)
+            val useShortIndices = mesh.vertexCount <= 65535
+            val indexBytes = mesh.indices.size * if (useShortIndices) 2 else 4
+            offset = indexOffset + indexBytes
+            ObjPrimitiveBuffer(
+                mesh = mesh,
+                positionOffset = positionOffset,
+                positionBytes = positionBytes,
+                normalOffset = normalOffset,
+                normalBytes = normalBytes,
+                uvOffset = uvOffset,
+                uvBytes = uvBytes,
+                indexOffset = indexOffset,
+                indexBytes = indexBytes,
+                useShortIndices = useShortIndices,
+            )
+        }
+        val binLength = align4(offset)
+        val bin = ByteBuffer.allocate(binLength).order(ByteOrder.LITTLE_ENDIAN)
+        for (buffer in buffers) {
+            bin.position(buffer.positionOffset)
+            buffer.mesh.positions.forEach(bin::putFloat)
+            bin.position(buffer.normalOffset)
+            buffer.mesh.normals.forEach(bin::putFloat)
+            bin.position(buffer.uvOffset)
+            buffer.mesh.texcoords.forEach(bin::putFloat)
+            bin.position(buffer.indexOffset)
+            if (buffer.useShortIndices) {
+                buffer.mesh.indices.forEach { bin.putShort(it.toShort()) }
+            } else {
+                buffer.mesh.indices.forEach(bin::putInt)
+            }
+        }
+
+        val primitivesJson =
+            buffers.mapIndexed { index, _ ->
+                val positionAccessor = index * 4
+                val normalAccessor = positionAccessor + 1
+                val uvAccessor = positionAccessor + 2
+                val indexAccessor = positionAccessor + 3
+                """{"attributes":{"POSITION":$positionAccessor,"NORMAL":$normalAccessor,"TEXCOORD_0":$uvAccessor},"indices":$indexAccessor,"material":$index}"""
+            }.joinToString(",")
+        val bufferViewsJson =
+            buffers.flatMap { buffer ->
+                listOf(
+                    """{"buffer":0,"byteOffset":${buffer.positionOffset},"byteLength":${buffer.positionBytes},"target":34962}""",
+                    """{"buffer":0,"byteOffset":${buffer.normalOffset},"byteLength":${buffer.normalBytes},"target":34962}""",
+                    """{"buffer":0,"byteOffset":${buffer.uvOffset},"byteLength":${buffer.uvBytes},"target":34962}""",
+                    """{"buffer":0,"byteOffset":${buffer.indexOffset},"byteLength":${buffer.indexBytes},"target":34963}""",
+                )
+            }.joinToString(",")
+        val accessorsJson =
+            buffers.flatMap { buffer ->
+                val mesh = buffer.mesh
+                listOf(
+                    """{"bufferView":${buffers.indexOf(buffer) * 4},"componentType":5126,"count":${mesh.vertexCount},"type":"VEC3","min":[${mesh.minX},${mesh.minY},${mesh.minZ}],"max":[${mesh.maxX},${mesh.maxY},${mesh.maxZ}]}""",
+                    """{"bufferView":${buffers.indexOf(buffer) * 4 + 1},"componentType":5126,"count":${mesh.vertexCount},"type":"VEC3"}""",
+                    """{"bufferView":${buffers.indexOf(buffer) * 4 + 2},"componentType":5126,"count":${mesh.vertexCount},"type":"VEC2"}""",
+                    """{"bufferView":${buffers.indexOf(buffer) * 4 + 3},"componentType":${if (buffer.useShortIndices) 5123 else 5125},"count":${mesh.indices.size},"type":"SCALAR"}""",
+                )
+            }.joinToString(",")
+
+        val json =
+            """
+            {
+              "asset":{"version":"2.0","generator":"stage_3d OBJ runtime loader"},
+              "scene":0,
+              "scenes":[{"nodes":[0]}],
+              "nodes":[{"mesh":0}],
+              "meshes":[{"primitives":[$primitivesJson]}],
+              "materials":[$materialJson],
+              "buffers":[{"byteLength":$binLength}],
+              "bufferViews":[$bufferViewsJson],
+              "accessors":[$accessorsJson]
+            }
+            """.trimIndent()
+        return buildGlb(json, bin.array())
+    }
+
+    private fun loadObjMaterials(
+        objAssetPath: String,
+        materialLibraries: List<String>,
+    ): Map<String, ObjMaterial> {
+        val directory = objAssetPath.substringBeforeLast('/', "")
+        val materials = linkedMapOf<String, ObjMaterial>()
+        for (library in materialLibraries) {
+            val materialPath =
+                if (directory.isEmpty() || library.contains('/')) {
+                    library
+                } else {
+                    "$directory/$library"
+                }
+            val source =
+                try {
+                    String(openAssetBytes(materialPath), Charsets.UTF_8)
+                } catch (_: FileNotFoundException) {
+                    continue
+                }
+            materials += parseObjMtl(source)
+        }
+        return materials
+    }
+
+    private fun parseObjMtl(source: String): Map<String, ObjMaterial> {
+        val materials = linkedMapOf<String, ObjMaterial>()
+        var current: ObjMaterial? = null
+        for (rawLine in source.lineSequence()) {
+            val line = rawLine.substringBefore('#').trim()
+            if (line.isEmpty()) continue
+            val parts = line.split(Regex("\\s+"))
+            when (parts.firstOrNull()) {
+                "newmtl" -> {
+                    current = ObjMaterial(name = parts.drop(1).joinToString(" "))
+                    materials[current.name] = current
+                }
+                "Kd" -> {
+                    val material = current ?: continue
+                    if (parts.size >= 4) {
+                        material.baseColor[0] = parts[1].toFloatOrNull() ?: material.baseColor[0]
+                        material.baseColor[1] = parts[2].toFloatOrNull() ?: material.baseColor[1]
+                        material.baseColor[2] = parts[3].toFloatOrNull() ?: material.baseColor[2]
+                    }
+                }
+                "d" -> {
+                    val material = current ?: continue
+                    material.baseColor[3] = parts.getOrNull(1)?.toFloatOrNull() ?: material.baseColor[3]
+                }
+                "Tr" -> {
+                    val material = current ?: continue
+                    val transparency = parts.getOrNull(1)?.toFloatOrNull() ?: 0.0f
+                    material.baseColor[3] = (1.0f - transparency).coerceIn(0.0f, 1.0f)
+                }
+                "Ns" -> {
+                    val material = current ?: continue
+                    val shininess = parts.getOrNull(1)?.toFloatOrNull() ?: 0.0f
+                    material.roughness = (1.0f - shininess.coerceIn(0.0f, 1000.0f) / 1000.0f)
+                        .coerceIn(0.05f, 1.0f)
+                }
+            }
+        }
+        return materials
+    }
+
+    private fun appendObjTriangle(
+        first: ObjFaceRef,
+        second: ObjFaceRef,
+        third: ObjFaceRef,
+        positions: List<ObjVec3>,
+        texcoords: List<ObjVec2>,
+        normals: List<ObjVec3>,
+        mesh: ObjMeshData,
+    ) {
+        if (first.position !in positions.indices ||
+            second.position !in positions.indices ||
+            third.position !in positions.indices
+        ) {
+            return
+        }
+        val faceNormal = triangleNormal(
+            positions[first.position],
+            positions[second.position],
+            positions[third.position],
+        )
+        appendObjVertex(first, positions, texcoords, normals, faceNormal, mesh)
+        appendObjVertex(second, positions, texcoords, normals, faceNormal, mesh)
+        appendObjVertex(third, positions, texcoords, normals, faceNormal, mesh)
+    }
+
+    private fun appendObjVertex(
+        ref: ObjFaceRef,
+        positions: List<ObjVec3>,
+        texcoords: List<ObjVec2>,
+        normals: List<ObjVec3>,
+        fallbackNormal: ObjVec3,
+        mesh: ObjMeshData,
+    ) {
+        val position = positions[ref.position]
+        val texcoord = ref.texcoord?.let(texcoords::getOrNull) ?: ObjVec2(0.0f, 0.0f)
+        val normal = ref.normal?.let(normals::getOrNull) ?: fallbackNormal
+        mesh.addVertex(position, texcoord, normal)
+    }
+
+    private fun parseObjFaceRef(
+        token: String,
+        positionCount: Int,
+        texcoordCount: Int,
+        normalCount: Int,
+    ): ObjFaceRef? {
+        val parts = token.split('/')
+        val position = objIndex(parts.getOrNull(0), positionCount) ?: return null
+        val texcoord = objIndex(parts.getOrNull(1), texcoordCount)
+        val normal = objIndex(parts.getOrNull(2), normalCount)
+        return ObjFaceRef(position, texcoord, normal)
+    }
+
+    private fun objIndex(value: String?, size: Int): Int? {
+        if (value.isNullOrEmpty()) return null
+        val index = value.toIntOrNull() ?: return null
+        val resolved = if (index > 0) index - 1 else size + index
+        return resolved.takeIf { it >= 0 }
+    }
+
+    private fun triangleNormal(a: ObjVec3, b: ObjVec3, c: ObjVec3): ObjVec3 =
+        normalize(
+            ObjVec3(
+                (b.y - a.y) * (c.z - a.z) - (b.z - a.z) * (c.y - a.y),
+                (b.z - a.z) * (c.x - a.x) - (b.x - a.x) * (c.z - a.z),
+                (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x),
+            ),
+        )
+
+    private fun normalize(vector: ObjVec3): ObjVec3 {
+        val length =
+            kotlin.math.sqrt(
+                (vector.x * vector.x + vector.y * vector.y + vector.z * vector.z).toDouble(),
+            ).toFloat()
+        if (length <= 0.000001f) return ObjVec3(0.0f, 1.0f, 0.0f)
+        return ObjVec3(vector.x / length, vector.y / length, vector.z / length)
+    }
+
     private fun createTexturePng(texture: Map<String, Any>): ByteArray {
         if (texture["kind"] == "asset") {
             val assetPath = texture["assetPath"] as? String
@@ -979,6 +1297,71 @@ class FilamentPlatformView(
         val asset: FilamentAsset,
         val customMaterial: NativeMeshMaterial?,
     )
+
+    private data class ObjVec3(val x: Float, val y: Float, val z: Float)
+
+    private data class ObjVec2(val u: Float, val v: Float)
+
+    private data class ObjFaceRef(
+        val position: Int,
+        val texcoord: Int?,
+        val normal: Int?,
+    )
+
+    private data class ObjPrimitiveBuffer(
+        val mesh: ObjMeshData,
+        val positionOffset: Int,
+        val positionBytes: Int,
+        val normalOffset: Int,
+        val normalBytes: Int,
+        val uvOffset: Int,
+        val uvBytes: Int,
+        val indexOffset: Int,
+        val indexBytes: Int,
+        val useShortIndices: Boolean,
+    )
+
+    private data class ObjMaterial(
+        val name: String = "",
+        val baseColor: FloatArray = floatArrayOf(1.0f, 1.0f, 1.0f, 1.0f),
+        var roughness: Float = 0.85f,
+    ) {
+        fun toGltfJson(): String =
+            """{"doubleSided":true,"pbrMetallicRoughness":{"baseColorFactor":[${baseColor[0]},${baseColor[1]},${baseColor[2]},${baseColor[3]}],"metallicFactor":0,"roughnessFactor":$roughness}}"""
+    }
+
+    private class ObjMeshData(val materialName: String) {
+        val positions = mutableListOf<Float>()
+        val normals = mutableListOf<Float>()
+        val texcoords = mutableListOf<Float>()
+        val indices = mutableListOf<Int>()
+        var minX = Float.POSITIVE_INFINITY
+        var minY = Float.POSITIVE_INFINITY
+        var minZ = Float.POSITIVE_INFINITY
+        var maxX = Float.NEGATIVE_INFINITY
+        var maxY = Float.NEGATIVE_INFINITY
+        var maxZ = Float.NEGATIVE_INFINITY
+        val vertexCount: Int
+            get() = positions.size / 3
+
+        fun addVertex(position: ObjVec3, texcoord: ObjVec2, normal: ObjVec3) {
+            positions += position.x
+            positions += position.y
+            positions += position.z
+            normals += normal.x
+            normals += normal.y
+            normals += normal.z
+            texcoords += texcoord.u
+            texcoords += texcoord.v
+            indices += vertexCount - 1
+            minX = minOf(minX, position.x)
+            minY = minOf(minY, position.y)
+            minZ = minOf(minZ, position.z)
+            maxX = maxOf(maxX, position.x)
+            maxY = maxOf(maxY, position.y)
+            maxZ = maxOf(maxZ, position.z)
+        }
+    }
 
     private data class NativeMeshMaterial(
         val material: Material?,

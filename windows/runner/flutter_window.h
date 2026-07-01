@@ -37,6 +37,8 @@ class FlutterWindow : public Win32Window {
   void CreateFilamentPreviewWindow();
   void DestroyFilamentPreviewWindow();
   void LayoutFilamentPreviewWindow();
+  void RenderFilamentFrame(bool tick_animations = false);
+  void SetFilamentAnimationLoopActive(bool active);
   LRESULT HandleFilamentPreviewMessage(
       HWND hwnd,
       UINT message,
@@ -55,6 +57,7 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<StageWindowsRendererBridge> renderer_bridge_;
   HWND filament_window_ = nullptr;
   bool filament_preview_enabled_ = false;
+  bool filament_frame_timer_active_ = false;
   bool filament_dragging_ = false;
   POINT filament_last_cursor_ = {0, 0};
 };

@@ -15,7 +15,7 @@
 namespace {
 
 constexpr UINT_PTR kFilamentFrameTimer = 1;
-constexpr UINT kFilamentFrameMs = 16;
+constexpr UINT kFilamentFrameMs = 33;
 constexpr wchar_t kFilamentPreviewWindowClass[] =
     L"STAGE_3D_FILAMENT_PREVIEW_WINDOW";
 
@@ -96,7 +96,9 @@ bool FlutterWindow::OnCreate() {
   renderer_bridge_ = std::make_unique<StageWindowsRendererBridge>(
       flutter_controller_->engine()->messenger(),
       L"data\\flutter_assets",
-      filament_renderer_.get());
+      filament_renderer_.get(),
+      [this]() { RenderFilamentFrame(false); },
+      [this](bool active) { SetFilamentAnimationLoopActive(active); });
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
@@ -112,6 +114,7 @@ bool FlutterWindow::OnCreate() {
 
 void FlutterWindow::OnDestroy() {
   KillTimer(GetHandle(), kFilamentFrameTimer);
+  filament_frame_timer_active_ = false;
   renderer_bridge_.reset();
   DestroyFilamentPreviewWindow();
   filament_renderer_.reset();
@@ -143,10 +146,7 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
 
     case WM_TIMER:
       if (wparam == kFilamentFrameTimer && filament_renderer_) {
-        if (renderer_bridge_) {
-          renderer_bridge_->TickAnimations();
-        }
-        filament_renderer_->RenderFrame();
+        RenderFilamentFrame(true);
         return 0;
       }
       break;
@@ -187,11 +187,7 @@ void FlutterWindow::CreateFilamentPreviewWindow() {
   }
   LogFilamentPreview("StageFilamentRenderer::Initialize succeeded.");
 
-  SetTimer(GetHandle(), kFilamentFrameTimer, kFilamentFrameMs, nullptr);
-  if (renderer_bridge_) {
-    renderer_bridge_->TickAnimations();
-  }
-  filament_renderer_->RenderFrame();
+  RenderFilamentFrame(false);
 }
 
 LRESULT CALLBACK FlutterWindow::FilamentPreviewWindowProc(
@@ -238,7 +234,7 @@ LRESULT FlutterWindow::HandleFilamentPreviewMessage(
       return 0;
 
     case WM_MOUSEMOVE:
-      if (filament_dragging_ && renderer_bridge_ && filament_renderer_) {
+      if (filament_dragging_ && renderer_bridge_) {
         const POINT cursor{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
         const float delta_x =
             static_cast<float>(cursor.x - filament_last_cursor_.x);
@@ -251,22 +247,19 @@ LRESULT FlutterWindow::HandleFilamentPreviewMessage(
         } else {
           renderer_bridge_->OrbitCamera(delta_x * 0.01f, -delta_y * 0.01f);
         }
-        filament_renderer_->RenderFrame();
       }
       return 0;
 
     case WM_MOUSEWHEEL:
-      if (renderer_bridge_ && filament_renderer_) {
+      if (renderer_bridge_) {
         renderer_bridge_->ZoomCamera(
             static_cast<float>(GET_WHEEL_DELTA_WPARAM(wparam)));
-        filament_renderer_->RenderFrame();
       }
       return 0;
 
     case WM_LBUTTONDBLCLK:
-      if (renderer_bridge_ && filament_renderer_) {
+      if (renderer_bridge_) {
         renderer_bridge_->ResetCamera();
-        filament_renderer_->RenderFrame();
       }
       return 0;
   }
@@ -304,9 +297,31 @@ void FlutterWindow::LayoutFilamentPreviewWindow() {
 
   if (filament_renderer_) {
     filament_renderer_->Resize(frame_width, frame_height);
-    if (renderer_bridge_) {
-      renderer_bridge_->TickAnimations();
+    RenderFilamentFrame(false);
+  }
+}
+
+void FlutterWindow::RenderFilamentFrame(bool tick_animations) {
+  if (filament_renderer_ == nullptr || IsIconic(GetHandle())) {
+    return;
+  }
+  if (tick_animations && renderer_bridge_) {
+    renderer_bridge_->TickAnimations();
+  }
+  filament_renderer_->RenderFrame();
+}
+
+void FlutterWindow::SetFilamentAnimationLoopActive(bool active) {
+  if (active) {
+    if (!filament_frame_timer_active_) {
+      SetTimer(GetHandle(), kFilamentFrameTimer, kFilamentFrameMs, nullptr);
+      filament_frame_timer_active_ = true;
     }
-    filament_renderer_->RenderFrame();
+    return;
+  }
+
+  if (filament_frame_timer_active_) {
+    KillTimer(GetHandle(), kFilamentFrameTimer);
+    filament_frame_timer_active_ = false;
   }
 }
