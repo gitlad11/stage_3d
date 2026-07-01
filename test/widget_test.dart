@@ -6,6 +6,6 @@ void main() {
     await tester.pumpWidget(const JoltDemoApp());
     await tester.pump();
 
-    expect(find.text('Loading Fox.glb'), findsOneWidget);
+    expect(find.text('Loading Fox.glb and TreePack.obj'), findsOneWidget);
   });
 }

@@ -1119,7 +1119,9 @@ bool StageFilamentRenderer::UnloadModelAsset(int32_t asset_id) {
 
 bool StageFilamentRenderer::CreateModelInstance(
     int32_t instance_id,
-    int32_t asset_id) {
+    int32_t asset_id,
+    bool cast_shadows,
+    bool receive_shadows) {
 #if defined(STAGE_HAS_FILAMENT)
   if (!impl_->initialized || impl_->asset_loader == nullptr ||
       impl_->scene == nullptr) {
@@ -1142,6 +1144,17 @@ bool StageFilamentRenderer::CreateModelInstance(
     return false;
   }
   impl_->scene->addEntities(instance->getEntities(), instance->getEntityCount());
+  auto& renderable_manager = impl_->engine->getRenderableManager();
+  const utils::Entity* entities = instance->getEntities();
+  const size_t entity_count = instance->getEntityCount();
+  for (size_t i = 0; i < entity_count; ++i) {
+    const auto renderable = renderable_manager.getInstance(entities[i]);
+    if (!renderable.isValid()) {
+      continue;
+    }
+    renderable_manager.setCastShadows(renderable, cast_shadows);
+    renderable_manager.setReceiveShadows(renderable, receive_shadows);
+  }
   impl_->model_instances[instance_id] = Impl::ModelInstance{
       asset_id,
       instance,

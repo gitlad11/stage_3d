@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-alpha.6
+
+- Fixed package ignore rules so root build output is excluded without excluding
+  required nested native build files.
+- Kept required Jolt `Build` CMake files in the pub.dev package archive.
+
 ## 0.1.0-alpha.4
 
 - Fixed pub.dev packaging for Android builds by including the required

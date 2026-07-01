@@ -32,7 +32,7 @@ class _FilamentFoxScenePageState extends State<FilamentFoxScenePage> {
   late final RenderModelInstance _foxInstance;
   late final TexturedMeshPrototype _groundMesh;
 
-  var _status = 'Loading Fox.glb';
+  var _status = 'Loading Fox.glb, TreePack.obj, and mighty_oak_trees.glb';
 
   @override
   void initState() {
@@ -57,15 +57,15 @@ class _FilamentFoxScenePageState extends State<FilamentFoxScenePage> {
     _optionsController = RenderOptionsController(
       initialOptions: const RenderOptions(
         shadows: true,
-        shadowType: ShadowType.pcss,
+        shadowType: ShadowType.dpcf,
         ambientOcclusion: AmbientOcclusionOptions(
           enabled: true,
-          radius: 0.45,
-          intensity: 0.8,
-          power: 1.15,
-          quality: RenderQuality.medium,
+          radius: 0.35,
+          intensity: 0.55,
+          power: 1.0,
+          quality: RenderQuality.low,
         ),
-        msaa: MsaaOptions(enabled: true, sampleCount: 4),
+        msaa: MsaaOptions(enabled: true, sampleCount: 2),
       ),
     );
     _lightController = RenderLightController()
@@ -93,10 +93,38 @@ class _FilamentFoxScenePageState extends State<FilamentFoxScenePage> {
         normalizedScale: 1.2,
       ),
     );
+    final treeAsset = _modelController.loadAsset(
+      const ModelAsset(
+        assetPath: 'models/TreePack.obj',
+        verticalAnchor: ModelVerticalAnchor.bottom,
+        normalizedScale: 1.6,
+      ),
+    );
+    final farTreeAsset = _modelController.loadAsset(
+      const ModelAsset(
+        assetPath: 'models/TreePack.obj',
+        verticalAnchor: ModelVerticalAnchor.bottom,
+        normalizedScale: 1.6,
+        castShadows: false,
+        receiveShadows: false,
+      ),
+    );
+    final oakAsset = _modelController.loadAsset(
+      const ModelAsset(
+        assetPath: 'models/mighty_oak_trees.glb',
+        verticalAnchor: ModelVerticalAnchor.bottom,
+        normalizedScale: 8.8,
+      ),
+    );
     _foxInstance = _modelController.createInstance(
       foxAsset,
-      transform: const PhysicsTransform(position: Vector3(0, 0, 0)),
+      transform: const PhysicsTransform(position: Vector3(-1.1, 0, 0)),
     );
+    _modelController.createInstance(
+      treeAsset,
+      transform: const PhysicsTransform(position: Vector3(1.15, 0, 0)),
+    );
+    _createTreeLodLayout(nearAsset: oakAsset, farAsset: farTreeAsset);
   }
 
   Future<void> _onRendererReady() async {
@@ -112,8 +140,9 @@ class _FilamentFoxScenePageState extends State<FilamentFoxScenePage> {
     }
     setState(() {
       _status = animations.isEmpty
-          ? 'Fox loaded'
-          : 'Fox loaded, ${animations.length} animations';
+          ? 'Fox, trees, and grass blocks loaded'
+          : 'Fox, trees, and grass blocks loaded, '
+                '${animations.length} animations';
     });
   }
 
@@ -126,6 +155,35 @@ class _FilamentFoxScenePageState extends State<FilamentFoxScenePage> {
     _modelController.detach();
     _fallbackCamera.dispose();
     super.dispose();
+  }
+
+  void _createTreeLodLayout({
+    required RenderModelAsset nearAsset,
+    required RenderModelAsset farAsset,
+  }) {
+    const nearTrees = [
+      _TreePlacement(position: Vector3(-1.1, 0, 1.85)),
+    ];
+    const farTrees = [
+      _TreePlacement(position: Vector3(-4.8, 0, 4.1)),
+      _TreePlacement(position: Vector3(-2.4, 0, 5.35)),
+      _TreePlacement(position: Vector3(0.65, 0, 5.2)),
+      _TreePlacement(position: Vector3(3.55, 0, 3.95)),
+      _TreePlacement(position: Vector3(5.25, 0, 1.35)),
+    ];
+
+    for (final placement in nearTrees) {
+      _modelController.createInstance(
+        nearAsset,
+        transform: placement.transform,
+      );
+    }
+    for (final placement in farTrees) {
+      _modelController.createInstance(
+        farAsset,
+        transform: placement.transform,
+      );
+    }
   }
 
   @override
@@ -181,6 +239,16 @@ class _FilamentFoxScenePageState extends State<FilamentFoxScenePage> {
   }
 }
 
+final class _TreePlacement {
+  const _TreePlacement({
+    required this.position,
+  });
+
+  final Vector3 position;
+
+  PhysicsTransform get transform => PhysicsTransform(position: position);
+}
+
 TexturedMeshPrototype _createFoxGroundMesh() {
   const texture = MeshTexturePrototype.asset(
     assetPath: 'textures/grass_pbr_atlas.png',
@@ -194,74 +262,94 @@ TexturedMeshPrototype _createFoxGroundMesh() {
     repeatV: 6,
   );
   final material = MeshMaterialPrototype.filamat(
-    assetPath: 'assets/materials/grass_wind.filamat',
+    assetPath: 'materials/grass_wind.filamat',
     texture: texture,
     roughnessFactor: 0.95,
     doubleSided: true,
-    uniforms: [
-      MaterialShaderUniform.float('reflectance', 0.2),
-      MaterialShaderUniform.float('windStrength', 0.0),
-      MaterialShaderUniform.float('windScale', 1.0),
-    ],
   );
-  const halfWidth = 5.0;
-  const halfDepth = 5.0;
+  const tileSize = 5.0;
+  const tileCount = 3;
+  const halfWidth = tileSize * tileCount / 2;
+  const halfDepth = tileSize * tileCount / 2;
   const top = 0.0;
   const bottom = -0.16;
-  final vertices = <MeshVertex>[
-    ..._groundQuad(
-      normal: const Vector3(0, 1, 0),
-      a: const Vector3(-halfWidth, top, -halfDepth),
-      b: const Vector3(halfWidth, top, -halfDepth),
-      c: const Vector3(halfWidth, top, halfDepth),
-      d: const Vector3(-halfWidth, top, halfDepth),
-    ),
-    ..._groundQuad(
-      normal: const Vector3(0, -1, 0),
-      a: const Vector3(-halfWidth, bottom, halfDepth),
-      b: const Vector3(halfWidth, bottom, halfDepth),
-      c: const Vector3(halfWidth, bottom, -halfDepth),
-      d: const Vector3(-halfWidth, bottom, -halfDepth),
-    ),
-    ..._groundQuad(
-      normal: const Vector3(0, 0, 1),
-      a: const Vector3(-halfWidth, bottom, halfDepth),
-      b: const Vector3(-halfWidth, top, halfDepth),
-      c: const Vector3(halfWidth, top, halfDepth),
-      d: const Vector3(halfWidth, bottom, halfDepth),
-    ),
-    ..._groundQuad(
-      normal: const Vector3(0, 0, -1),
-      a: const Vector3(halfWidth, bottom, -halfDepth),
-      b: const Vector3(halfWidth, top, -halfDepth),
-      c: const Vector3(-halfWidth, top, -halfDepth),
-      d: const Vector3(-halfWidth, bottom, -halfDepth),
-    ),
-    ..._groundQuad(
-      normal: const Vector3(1, 0, 0),
-      a: const Vector3(halfWidth, bottom, halfDepth),
-      b: const Vector3(halfWidth, top, halfDepth),
-      c: const Vector3(halfWidth, top, -halfDepth),
-      d: const Vector3(halfWidth, bottom, -halfDepth),
-    ),
-    ..._groundQuad(
-      normal: const Vector3(-1, 0, 0),
-      a: const Vector3(-halfWidth, bottom, -halfDepth),
-      b: const Vector3(-halfWidth, top, -halfDepth),
-      c: const Vector3(-halfWidth, top, halfDepth),
-      d: const Vector3(-halfWidth, bottom, halfDepth),
-    ),
-  ];
+  final vertices = <MeshVertex>[];
+  final indices = <int>[];
+
+  void addQuad({
+    required Vector3 normal,
+    required Vector3 a,
+    required Vector3 b,
+    required Vector3 c,
+    required Vector3 d,
+    double uvRepeat = 6,
+  }) {
+    final start = vertices.length;
+    vertices.addAll(
+      _groundQuad(normal: normal, a: a, b: b, c: c, d: d, uvRepeat: uvRepeat),
+    );
+    indices.addAll([start, start + 2, start + 1, start, start + 3, start + 2]);
+  }
+
+  for (var row = 0; row < tileCount; row++) {
+    for (var column = 0; column < tileCount; column++) {
+      final left = -halfWidth + column * tileSize;
+      final right = left + tileSize;
+      final back = -halfDepth + row * tileSize;
+      final front = back + tileSize;
+      addQuad(
+        normal: const Vector3(0, 1, 0),
+        a: Vector3(left, top, back),
+        b: Vector3(right, top, back),
+        c: Vector3(right, top, front),
+        d: Vector3(left, top, front),
+      );
+    }
+  }
+
+  addQuad(
+    normal: const Vector3(0, -1, 0),
+    a: const Vector3(-halfWidth, bottom, halfDepth),
+    b: const Vector3(halfWidth, bottom, halfDepth),
+    c: const Vector3(halfWidth, bottom, -halfDepth),
+    d: const Vector3(-halfWidth, bottom, -halfDepth),
+    uvRepeat: tileCount * 6,
+  );
+  addQuad(
+    normal: const Vector3(0, 0, 1),
+    a: const Vector3(-halfWidth, bottom, halfDepth),
+    b: const Vector3(-halfWidth, top, halfDepth),
+    c: const Vector3(halfWidth, top, halfDepth),
+    d: const Vector3(halfWidth, bottom, halfDepth),
+    uvRepeat: tileCount * 6,
+  );
+  addQuad(
+    normal: const Vector3(0, 0, -1),
+    a: const Vector3(halfWidth, bottom, -halfDepth),
+    b: const Vector3(halfWidth, top, -halfDepth),
+    c: const Vector3(-halfWidth, top, -halfDepth),
+    d: const Vector3(-halfWidth, bottom, -halfDepth),
+    uvRepeat: tileCount * 6,
+  );
+  addQuad(
+    normal: const Vector3(1, 0, 0),
+    a: const Vector3(halfWidth, bottom, halfDepth),
+    b: const Vector3(halfWidth, top, halfDepth),
+    c: const Vector3(halfWidth, top, -halfDepth),
+    d: const Vector3(halfWidth, bottom, -halfDepth),
+    uvRepeat: tileCount * 6,
+  );
+  addQuad(
+    normal: const Vector3(-1, 0, 0),
+    a: const Vector3(-halfWidth, bottom, -halfDepth),
+    b: const Vector3(-halfWidth, top, -halfDepth),
+    c: const Vector3(-halfWidth, top, halfDepth),
+    d: const Vector3(-halfWidth, bottom, halfDepth),
+    uvRepeat: tileCount * 6,
+  );
   return TexturedMeshPrototype(
     vertices: vertices,
-    indices: const [
-      0, 2, 1, 0, 3, 2,
-      4, 6, 5, 4, 7, 6,
-      8, 10, 9, 8, 11, 10,
-      12, 14, 13, 12, 15, 14,
-      16, 18, 17, 16, 19, 18,
-      20, 22, 21, 20, 23, 22,
-    ],
+    indices: indices,
     material: material,
   );
 }
@@ -272,11 +360,12 @@ List<MeshVertex> _groundQuad({
   required Vector3 b,
   required Vector3 c,
   required Vector3 d,
+  double uvRepeat = 6,
 }) {
   return [
     MeshVertex(position: a, normal: normal, uv: Offset.zero),
-    MeshVertex(position: b, normal: normal, uv: const Offset(6, 0)),
-    MeshVertex(position: c, normal: normal, uv: const Offset(6, 6)),
-    MeshVertex(position: d, normal: normal, uv: const Offset(0, 6)),
+    MeshVertex(position: b, normal: normal, uv: Offset(uvRepeat, 0)),
+    MeshVertex(position: c, normal: normal, uv: Offset(uvRepeat, uvRepeat)),
+    MeshVertex(position: d, normal: normal, uv: Offset(0, uvRepeat)),
   ];
 }

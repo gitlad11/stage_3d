@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <optional>
+#include <utility>
 #include <vector>
 #include <windows.h>
 
@@ -340,8 +341,13 @@ int64_t NowNanos() {
 StageWindowsRendererBridge::StageWindowsRendererBridge(
     flutter::BinaryMessenger* messenger,
     std::wstring assets_path,
-    stage_3d::StageFilamentRenderer* renderer)
-    : assets_path_(std::move(assets_path)), renderer_(renderer) {
+    stage_3d::StageFilamentRenderer* renderer,
+    std::function<void()> request_render,
+    std::function<void(bool)> set_animation_loop_active)
+    : assets_path_(std::move(assets_path)),
+      renderer_(renderer),
+      request_render_(std::move(request_render)),
+      set_animation_loop_active_(std::move(set_animation_loop_active)) {
   std::filesystem::path normalized_assets_path(assets_path_);
   if (normalized_assets_path.is_relative()) {
     normalized_assets_path = ExecutableDirectory() / normalized_assets_path;
@@ -363,6 +369,22 @@ StageWindowsRendererBridge::~StageWindowsRendererBridge() {
     channel_->SetMethodCallHandler(nullptr);
   }
   stage_engine_destroy(engine_);
+}
+
+bool StageWindowsRendererBridge::HasActiveAnimations() const {
+  return !animated_instances_.empty();
+}
+
+void StageWindowsRendererBridge::NotifyAnimationLoopState() {
+  if (set_animation_loop_active_) {
+    set_animation_loop_active_(HasActiveAnimations());
+  }
+}
+
+void StageWindowsRendererBridge::RequestRender() {
+  if (request_render_) {
+    request_render_();
+  }
 }
 
 void StageWindowsRendererBridge::TickAnimations() {
@@ -405,11 +427,13 @@ void StageWindowsRendererBridge::OrbitCamera(
     float delta_pitch) {
   stage_engine_orbit_camera(engine_, delta_yaw, delta_pitch);
   ApplyCamera();
+  RequestRender();
 }
 
 void StageWindowsRendererBridge::MoveCamera(float delta_x, float delta_y) {
   stage_engine_move_camera(engine_, delta_x, delta_y);
   ApplyCamera();
+  RequestRender();
 }
 
 void StageWindowsRendererBridge::ZoomCamera(float wheel_delta) {
@@ -418,11 +442,13 @@ void StageWindowsRendererBridge::ZoomCamera(float wheel_delta) {
   camera.distance *= scale;
   stage_engine_set_orbit_camera(engine_, camera);
   ApplyCamera();
+  RequestRender();
 }
 
 void StageWindowsRendererBridge::ResetCamera() {
   stage_engine_reset_camera(engine_);
   ApplyCamera();
+  RequestRender();
 }
 
 void StageWindowsRendererBridge::HandleMethodCall(
@@ -444,6 +470,7 @@ void StageWindowsRendererBridge::HandleMethodCall(
     }
     stage_engine_set_orbit_camera(engine_, OrbitCameraFromMessage(*arguments));
     ApplyCamera();
+    RequestRender();
     Success(std::move(result));
     return;
   }
@@ -482,6 +509,7 @@ void StageWindowsRendererBridge::HandleMethodCall(
     if (renderer_ != nullptr) {
       renderer_->SetEnvironment(stage_engine_get_environment(engine_));
     }
+    RequestRender();
     Success(std::move(result));
     return;
   }
@@ -494,6 +522,7 @@ void StageWindowsRendererBridge::HandleMethodCall(
     if (renderer_ != nullptr) {
       renderer_->SetRenderOptions(RenderOptionsFromMessage(*arguments));
     }
+    RequestRender();
     Success(std::move(result));
     return;
   }
@@ -509,6 +538,7 @@ void StageWindowsRendererBridge::HandleMethodCall(
         stage_engine_get_light(engine_, light.id, &light) != 0) {
       renderer_->UpsertLight(light);
     }
+    RequestRender();
     Success(std::move(result));
     return;
   }
@@ -526,6 +556,7 @@ void StageWindowsRendererBridge::HandleMethodCall(
     if (renderer_ != nullptr) {
       renderer_->SetLightPosition(id, x, y, z);
     }
+    RequestRender();
     Success(std::move(result));
     return;
   }
@@ -543,6 +574,7 @@ void StageWindowsRendererBridge::HandleMethodCall(
     if (renderer_ != nullptr) {
       renderer_->SetLightDirection(id, x, y, z);
     }
+    RequestRender();
     Success(std::move(result));
     return;
   }
@@ -558,6 +590,7 @@ void StageWindowsRendererBridge::HandleMethodCall(
     if (renderer_ != nullptr) {
       renderer_->SetLightIntensity(id, intensity);
     }
+    RequestRender();
     Success(std::move(result));
     return;
   }
@@ -570,6 +603,7 @@ void StageWindowsRendererBridge::HandleMethodCall(
         renderer_->RemoveLight(id);
       }
     }
+    RequestRender();
     Success(std::move(result));
     return;
   }
@@ -589,6 +623,7 @@ void StageWindowsRendererBridge::HandleMethodCall(
       Error(std::move(result), "Filament failed to create textured mesh.");
       return;
     }
+    RequestRender();
     Success(std::move(result));
     return;
   }
@@ -597,6 +632,7 @@ void StageWindowsRendererBridge::HandleMethodCall(
     if (arguments != nullptr && renderer_ != nullptr) {
       renderer_->DestroyTexturedMesh(IntValue(*arguments, "meshId"));
     }
+    RequestRender();
     Success(std::move(result));
     return;
   }
@@ -643,6 +679,7 @@ void StageWindowsRendererBridge::HandleMethodCall(
             renderer_bounds.half_extent[1],
             renderer_bounds.half_extent[2],
         });
+    RequestRender();
     Success(std::move(result));
     return;
   }
@@ -657,6 +694,7 @@ void StageWindowsRendererBridge::HandleMethodCall(
     if (renderer_ != nullptr) {
       renderer_->UnloadModelAsset(asset_id);
     }
+    RequestRender();
     Success(std::move(result));
     return;
   }
@@ -668,6 +706,7 @@ void StageWindowsRendererBridge::HandleMethodCall(
     }
     const int32_t instance_id = IntValue(*arguments, "instanceId");
     const int32_t asset_id = IntValue(*arguments, "assetId");
+    animated_instances_.erase(instance_id);
     stage_engine_remove_model_instance(engine_, instance_id);
     if (renderer_ != nullptr) {
       renderer_->DestroyModelInstance(instance_id);
@@ -677,7 +716,11 @@ void StageWindowsRendererBridge::HandleMethodCall(
       return;
     }
     if (renderer_ != nullptr &&
-        !renderer_->CreateModelInstance(instance_id, asset_id)) {
+        !renderer_->CreateModelInstance(
+            instance_id,
+            asset_id,
+            BoolValue(*arguments, "castShadows", true),
+            BoolValue(*arguments, "receiveShadows", true))) {
       stage_engine_remove_model_instance(engine_, instance_id);
       Error(std::move(result), "Filament failed to create model instance.");
       return;
@@ -691,6 +734,7 @@ void StageWindowsRendererBridge::HandleMethodCall(
     }
     if (const auto* animation = FindValue(*arguments, "animationIndex");
         animation != nullptr && animation->TryGetLongValue().has_value()) {
+      const bool paused = BoolValue(*arguments, "paused");
       stage_engine_play_model_animation(
           engine_,
           instance_id,
@@ -698,9 +742,13 @@ void StageWindowsRendererBridge::HandleMethodCall(
           BoolValue(*arguments, "loop", true) ? 1 : 0,
           FloatValue(*arguments, "speed", 1.0f),
           NowNanos(),
-          BoolValue(*arguments, "paused") ? 1 : 0);
-      animated_instances_.insert(instance_id);
+          paused ? 1 : 0);
+      if (!paused) {
+        animated_instances_.insert(instance_id);
+      }
     }
+    NotifyAnimationLoopState();
+    RequestRender();
     Success(std::move(result));
     return;
   }
@@ -718,6 +766,7 @@ void StageWindowsRendererBridge::HandleMethodCall(
         stage_engine_get_model_matrix(engine_, instance_id, matrix) != 0) {
       renderer_->SetModelTransform(instance_id, matrix);
     }
+    RequestRender();
     Success(std::move(result));
     return;
   }
@@ -731,6 +780,8 @@ void StageWindowsRendererBridge::HandleMethodCall(
         renderer_->DestroyModelInstance(instance_id);
       }
     }
+    NotifyAnimationLoopState();
+    RequestRender();
     Success(std::move(result));
     return;
   }
@@ -759,42 +810,61 @@ void StageWindowsRendererBridge::HandleMethodCall(
       Error(std::move(result), "playModelAnimation expects a map.");
       return;
     }
+    const int32_t instance_id = IntValue(*arguments, "instanceId");
+    const bool paused = BoolValue(*arguments, "paused");
     stage_engine_play_model_animation(
         engine_,
-        IntValue(*arguments, "instanceId"),
+        instance_id,
         IntValue(*arguments, "animationIndex"),
         BoolValue(*arguments, "loop", true) ? 1 : 0,
         FloatValue(*arguments, "speed", 1.0f),
         NowNanos(),
-        BoolValue(*arguments, "paused") ? 1 : 0);
-    animated_instances_.insert(IntValue(*arguments, "instanceId"));
+        paused ? 1 : 0);
+    if (paused) {
+      animated_instances_.erase(instance_id);
+    } else {
+      animated_instances_.insert(instance_id);
+    }
+    NotifyAnimationLoopState();
+    RequestRender();
     Success(std::move(result));
     return;
   }
 
   if (method == "pauseModelAnimation") {
     if (arguments != nullptr) {
+      const int32_t instance_id = IntValue(*arguments, "instanceId");
       stage_engine_pause_model_animation(
-          engine_, IntValue(*arguments, "instanceId"), NowNanos());
+          engine_, instance_id, NowNanos());
+      animated_instances_.erase(instance_id);
     }
+    NotifyAnimationLoopState();
+    RequestRender();
     Success(std::move(result));
     return;
   }
 
   if (method == "resumeModelAnimation") {
     if (arguments != nullptr) {
+      const int32_t instance_id = IntValue(*arguments, "instanceId");
       stage_engine_resume_model_animation(
-          engine_, IntValue(*arguments, "instanceId"), NowNanos());
+          engine_, instance_id, NowNanos());
+      animated_instances_.insert(instance_id);
     }
+    NotifyAnimationLoopState();
+    RequestRender();
     Success(std::move(result));
     return;
   }
 
   if (method == "stopModelAnimation") {
     if (arguments != nullptr) {
-      stage_engine_stop_model_animation(engine_, IntValue(*arguments, "instanceId"));
-      animated_instances_.erase(IntValue(*arguments, "instanceId"));
+      const int32_t instance_id = IntValue(*arguments, "instanceId");
+      stage_engine_stop_model_animation(engine_, instance_id);
+      animated_instances_.erase(instance_id);
     }
+    NotifyAnimationLoopState();
+    RequestRender();
     Success(std::move(result));
     return;
   }

@@ -33,6 +33,9 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Stage 3D model converter output.
+/assets/models/generated/
+
 # Symbolication related
 app.*.symbols
 

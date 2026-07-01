@@ -19,6 +19,17 @@ void main() {
     });
   });
 
+  test('ModelAsset can point at an OBJ renderer asset', () {
+    const asset = ModelAsset(assetPath: 'models/chair.obj');
+
+    expect(asset.toMessage(), {
+      'assetPath': 'models/chair.obj',
+      'normalizedScale': 1,
+      'animationIndex': null,
+      'verticalAnchor': 'center',
+    });
+  });
+
   test('ModelAsset serializes vertical anchor', () {
     const asset = ModelAsset(
       assetPath: 'models/tree.glb',
@@ -49,21 +60,24 @@ void main() {
     expect(instance.transform, same(updated));
   });
 
-  test('RenderModelController requires instances to be destroyed before unload', () {
-    final models = RenderModelController();
-    final asset = models.loadAsset(
-      const ModelAsset(assetPath: 'models/room.glb'),
-    );
-    final instance = models.createInstance(
-      asset,
-      transform: const PhysicsTransform(position: Vector3.zero),
-    );
+  test(
+    'RenderModelController requires instances to be destroyed before unload',
+    () {
+      final models = RenderModelController();
+      final asset = models.loadAsset(
+        const ModelAsset(assetPath: 'models/room.glb'),
+      );
+      final instance = models.createInstance(
+        asset,
+        transform: const PhysicsTransform(position: Vector3.zero),
+      );
 
-    expect(() => models.unloadAsset(asset), throwsStateError);
+      expect(() => models.unloadAsset(asset), throwsStateError);
 
-    models.destroyInstance(instance);
-    expect(() => models.unloadAsset(asset), returnsNormally);
-  });
+      models.destroyInstance(instance);
+      expect(() => models.unloadAsset(asset), returnsNormally);
+    },
+  );
 
   test('ModelAnimation reads native clip metadata', () {
     final animation = ModelAnimation.fromMessage({

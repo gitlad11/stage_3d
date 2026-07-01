@@ -1,9 +1,11 @@
 .dart_tool/
 .idea/
-build/
+/build/
 docs/
 *.iml
 android/.gradle/
+android/.cxx/
+android/build/
 android/.kotlin/
 android/app/
 ios/
@@ -11,6 +13,7 @@ linux/
 macos/
 web/
 windows/
+native/benchmarks/
 lib/app.dart
 lib/main.dart
 lib/ui/
