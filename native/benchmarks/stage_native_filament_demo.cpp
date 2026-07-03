@@ -349,7 +349,7 @@ void OrbitCamera(DemoApp* app, float delta_yaw, float delta_pitch) {
 }
 
 void MoveCamera(DemoApp* app, float delta_x, float delta_y) {
-  stage_engine_move_camera(app->engine, delta_x, delta_y);
+  stage_engine_move_camera(app->engine, delta_x, delta_y, 0.0f);
   ApplyCamera(app);
 }
 

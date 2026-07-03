@@ -18,6 +18,9 @@ abstract interface class RenderSceneBridge {
   /// Resets the active renderer camera/view state.
   Future<void> resetView();
 
+  /// Requests a single render pass from an on-demand renderer.
+  Future<void> requestRender();
+
   /// Applies an orbit camera preset to the active renderer view.
   Future<void> setCamera(StageCamera camera);
 
@@ -25,7 +28,7 @@ abstract interface class RenderSceneBridge {
   Future<void> orbitCamera(double deltaYaw, double deltaPitch);
 
   /// Moves the active renderer camera in view space.
-  Future<void> moveCamera(double deltaX, double deltaY);
+  Future<void> moveCamera(double deltaX, double deltaY, [double deltaZ = 0]);
 
   /// Applies scene-wide environment settings.
   Future<void> setEnvironment(RenderEnvironment environment);
@@ -107,6 +110,9 @@ final class MethodChannelRenderSceneBridge implements RenderSceneBridge {
   Future<void> resetView() => channel.invokeMethod<void>('resetView');
 
   @override
+  Future<void> requestRender() => channel.invokeMethod<void>('requestRender');
+
+  @override
   Future<void> setCamera(StageCamera camera) =>
       channel.invokeMethod<void>('setCamera', camera.toMessage());
 
@@ -118,8 +124,12 @@ final class MethodChannelRenderSceneBridge implements RenderSceneBridge {
       });
 
   @override
-  Future<void> moveCamera(double deltaX, double deltaY) => channel
-      .invokeMethod<void>('moveCamera', {'deltaX': deltaX, 'deltaY': deltaY});
+  Future<void> moveCamera(double deltaX, double deltaY, [double deltaZ = 0]) =>
+      channel.invokeMethod<void>('moveCamera', {
+        'deltaX': deltaX,
+        'deltaY': deltaY,
+        'deltaZ': deltaZ,
+      });
 
   @override
   Future<void> setEnvironment(RenderEnvironment environment) =>

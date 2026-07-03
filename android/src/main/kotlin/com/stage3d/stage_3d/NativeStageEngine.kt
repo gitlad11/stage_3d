@@ -17,7 +17,8 @@ internal class NativeStageEngine : AutoCloseable {
     fun orbitCamera(deltaYaw: Float, deltaPitch: Float) =
         nativeOrbitCamera(handle, deltaYaw, deltaPitch)
 
-    fun moveCamera(deltaX: Float, deltaY: Float) = nativeMoveCamera(handle, deltaX, deltaY)
+    fun moveCamera(deltaX: Float, deltaY: Float, deltaZ: Float = 0.0f) =
+        nativeMoveCamera(handle, deltaX, deltaY, deltaZ)
 
     fun camera(): FloatArray = nativeGetCamera(handle)
 
@@ -193,6 +194,7 @@ internal class NativeStageEngine : AutoCloseable {
             handle: Long,
             deltaX: Float,
             deltaY: Float,
+            deltaZ: Float,
         )
         @JvmStatic private external fun nativeGetCamera(handle: Long): FloatArray
         @JvmStatic private external fun nativeSetEnvironment(

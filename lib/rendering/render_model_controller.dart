@@ -33,6 +33,17 @@ final class RenderModelController {
     }
   }
 
+  /// Attaches to a renderer bridge and waits until registered data is created.
+  Future<void> attachBridgeAsync(RenderSceneBridge bridge) async {
+    _bridge = bridge;
+    for (final asset in _assets.values) {
+      await _loadBridgeAssetAsync(asset);
+    }
+    for (final instance in _instances.values) {
+      await _createBridgeInstanceAsync(instance);
+    }
+  }
+
   /// Detaches while retaining Dart-side scene prototypes.
   void detach() {
     _bridge = null;
@@ -146,22 +157,31 @@ final class RenderModelController {
   }
 
   void _loadBridgeAsset(RenderModelAsset asset) {
-    _bridge?.loadModelAsset(asset).catchError((Object error, StackTrace stack) {
-      debugPrint(
-        'Stage 3D renderer failed to load ${asset.settings.assetPath}: $error',
-      );
-    });
+    _loadBridgeAssetAsync(asset);
   }
 
   void _createBridgeInstance(RenderModelInstance instance) {
-    _bridge?.createModelInstance(instance).catchError((
-      Object error,
-      StackTrace stack,
-    ) {
+    _createBridgeInstanceAsync(instance);
+  }
+
+  Future<void> _loadBridgeAssetAsync(RenderModelAsset asset) async {
+    try {
+      await _bridge?.loadModelAsset(asset);
+    } catch (error) {
+      debugPrint(
+        'Stage 3D renderer failed to load ${asset.settings.assetPath}: $error',
+      );
+    }
+  }
+
+  Future<void> _createBridgeInstanceAsync(RenderModelInstance instance) async {
+    try {
+      await _bridge?.createModelInstance(instance);
+    } catch (error) {
       debugPrint(
         'Stage 3D renderer failed to create model instance '
         '${instance.id.value}: $error',
       );
-    });
+    }
   }
 }

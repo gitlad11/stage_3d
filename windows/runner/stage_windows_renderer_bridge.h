@@ -33,7 +33,7 @@ class StageWindowsRendererBridge {
   void TickAnimations();
   bool HasActiveAnimations() const;
   void OrbitCamera(float delta_yaw, float delta_pitch);
-  void MoveCamera(float delta_x, float delta_y);
+  void MoveCamera(float delta_x, float delta_y, float delta_z = 0.0f);
   void ZoomCamera(float wheel_delta);
   void ResetCamera();
 

@@ -39,8 +39,12 @@ void OrbitCamera(jlong handle, jfloat delta_yaw, jfloat delta_pitch) {
       FromHandle(handle), delta_yaw, delta_pitch);
 }
 
-void MoveCamera(jlong handle, jfloat delta_x, jfloat delta_y) {
-  stage_engine_move_camera(FromHandle(handle), delta_x, delta_y);
+void MoveCamera(
+    jlong handle,
+    jfloat delta_x,
+    jfloat delta_y,
+    jfloat delta_z) {
+  stage_engine_move_camera(FromHandle(handle), delta_x, delta_y, delta_z);
 }
 
 jfloatArray GetCamera(JNIEnv* env, jlong handle) {
@@ -333,8 +337,8 @@ jfloat SampleModelAnimation(
   }                                                                            \
   extern "C" JNIEXPORT void JNICALL                                           \
       Java_##PACKAGE##_NativeStageEngine_nativeMoveCamera(                     \
-          JNIEnv*, jclass, jlong handle, jfloat x, jfloat y) {                 \
-    MoveCamera(handle, x, y);                                                  \
+          JNIEnv*, jclass, jlong handle, jfloat x, jfloat y, jfloat z) {       \
+    MoveCamera(handle, x, y, z);                                               \
   }                                                                            \
   extern "C" JNIEXPORT jfloatArray JNICALL                                    \
       Java_##PACKAGE##_NativeStageEngine_nativeGetCamera(                      \

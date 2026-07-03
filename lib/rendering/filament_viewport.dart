@@ -51,6 +51,10 @@ final class FilamentViewportController {
     _bridge?.setCamera(_camera);
   }
 
+  Future<void> syncCameraToRendererAsync() {
+    return _bridge?.setCamera(_camera) ?? Future<void>.value();
+  }
+
   void resetView() {
     setCamera(StageCamera.defaultView);
     _bridge?.resetView();
@@ -61,8 +65,8 @@ final class FilamentViewportController {
     _bridge?.orbitCamera(deltaYaw, deltaPitch);
   }
 
-  void moveCamera(double deltaX, double deltaY) {
-    _bridge?.moveCamera(deltaX, deltaY);
+  void moveCamera(double deltaX, double deltaY, [double deltaZ = 0]) {
+    _bridge?.moveCamera(deltaX, deltaY, deltaZ);
   }
 }
 
@@ -116,16 +120,48 @@ class _FilamentViewportState extends State<FilamentViewport> {
   void _onPlatformViewCreated(int viewId) {
     _channel = MethodChannel('filament_view_$viewId');
     final bridge = MethodChannelRenderSceneBridge(_channel!);
+    _attachRendererBridge(bridge);
+  }
+
+  Future<void> _attachRendererBridge(RenderSceneBridge bridge) async {
     widget.controller.attachBridge(bridge);
     widget.environmentController?.attachBridge(bridge);
     widget.optionsController?.attachBridge(bridge);
     widget.lightController.attachBridge(bridge);
     for (final (index, mesh) in widget.meshPrototypes.indexed) {
-      bridge.createTexturedMesh(index + 1, mesh);
+      try {
+        await bridge.createTexturedMesh(index + 1, mesh);
+      } catch (error, stack) {
+        debugPrint(
+          'Stage 3D renderer failed to create mesh ${index + 1}: $error',
+        );
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stack,
+            library: 'stage_3d',
+            context: ErrorDescription('while creating a textured mesh'),
+          ),
+        );
+      }
     }
-    widget.modelController.attachBridge(bridge);
-    widget.controller.syncCameraToRenderer();
+    await widget.modelController.attachBridgeAsync(bridge);
+    await widget.controller.syncCameraToRendererAsync();
+    await _requestStartupFrames(bridge);
+    if (!mounted) {
+      return;
+    }
     widget.onRendererReady?.call();
+  }
+
+  Future<void> _requestStartupFrames(RenderSceneBridge bridge) async {
+    for (var i = 0; i < 3; i++) {
+      await bridge.requestRender();
+      await Future<void>.delayed(const Duration(milliseconds: 16));
+      if (!mounted) {
+        return;
+      }
+    }
   }
 
   @override
@@ -141,16 +177,7 @@ class _FilamentViewportState extends State<FilamentViewport> {
   void _attachWindowsRendererBridge() {
     _channel = const MethodChannel('filament_view_0');
     final bridge = MethodChannelRenderSceneBridge(_channel!);
-    widget.controller.attachBridge(bridge);
-    widget.environmentController?.attachBridge(bridge);
-    widget.optionsController?.attachBridge(bridge);
-    widget.lightController.attachBridge(bridge);
-    for (final (index, mesh) in widget.meshPrototypes.indexed) {
-      bridge.createTexturedMesh(index + 1, mesh);
-    }
-    widget.modelController.attachBridge(bridge);
-    widget.controller.syncCameraToRenderer();
-    widget.onRendererReady?.call();
+    _attachRendererBridge(bridge);
   }
 
   @override

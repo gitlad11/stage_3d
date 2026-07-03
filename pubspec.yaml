@@ -1,6 +1,6 @@
 name: stage_3d
 description: "Flutter 3D plugin with Google Filament rendering and Jolt Physics for GLB models, scene nodes, lighting, animation, and spatial queries."
-version: 0.1.0-alpha.7
+version: 0.1.0-beta.1
 repository: https://github.com/gitlad11/stage_3d
 issue_tracker: https://github.com/gitlad11/stage_3d/issues
 executables:
@@ -35,9 +35,14 @@ flutter:
 
   assets:
     - assets/models/Fox.glb
+    - assets/models/caravane_real.glb
     - assets/models/TreePack.obj
     - assets/models/mighty_oak_trees.glb
+    - assets/models/ferns/Ferns.glb
     - assets/textures/grass_pbr_atlas.png
+    - assets/textures/ferns/Ferns_Texture_0.png
+    - assets/textures/ferns/Temperate_Forest_Fern_Cluster_Color_2.png
+    - assets/textures/ferns/internal_ground_ao_texture.jpeg
     - assets/material_sources/grass_wind.mat
     - assets/material_sources/grass_wind.shader
     - assets/material_sources/water.shader

@@ -126,7 +126,8 @@ STAGE_EXPORT void stage_engine_orbit_camera(
 STAGE_EXPORT void stage_engine_move_camera(
     StageEngine* engine,
     float delta_x,
-    float delta_y);
+    float delta_y,
+    float delta_z);
 STAGE_EXPORT void stage_engine_reset_camera(StageEngine* engine);
 
 STAGE_EXPORT void stage_engine_set_environment(

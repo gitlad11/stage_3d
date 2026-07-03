@@ -58,8 +58,12 @@ final class OrbitCamera extends ChangeNotifier {
     notifyListeners();
   }
 
-  void moveTargetBy({required double right, required double forward}) {
-    if (right == 0 && forward == 0) {
+  void moveTargetBy({
+    required double right,
+    required double forward,
+    double up = 0,
+  }) {
+    if (right == 0 && forward == 0 && up == 0) {
       return;
     }
     final yawCos = math.cos(_yaw);
@@ -68,7 +72,7 @@ final class OrbitCamera extends ChangeNotifier {
     final worldForward = Vector3(yawSin, 0, yawCos);
     _target = Vector3(
       _target.x + worldRight.x * right + worldForward.x * forward,
-      _target.y,
+      _target.y + up,
       _target.z + worldRight.z * right + worldForward.z * forward,
     );
     notifyListeners();

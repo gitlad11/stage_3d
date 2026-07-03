@@ -72,6 +72,10 @@ class FilamentPlatformView(
                 modelViewer.resetToDefaultState()
                 result.success(null)
             }
+            "requestRender" -> {
+                requestRender()
+                result.success(null)
+            }
             "setCamera" -> {
                 setCamera(call)
                 result.success(null)
@@ -199,6 +203,14 @@ class FilamentPlatformView(
         choreographer.postFrameCallback(this)
     }
 
+    private fun requestRender() {
+        choreographer.postFrameCallback { frameTimeNanos ->
+            if (!disposed) {
+                modelViewer.render(frameTimeNanos)
+            }
+        }
+    }
+
     override fun dispose() {
         disposed = true
         choreographer.removeFrameCallback(this)
@@ -253,7 +265,11 @@ class FilamentPlatformView(
     }
 
     private fun moveCamera(call: MethodCall) {
-        nativeEngine.moveCamera(call.float("deltaX"), call.float("deltaY"))
+        nativeEngine.moveCamera(
+            call.float("deltaX"),
+            call.float("deltaY"),
+            call.float("deltaZ"),
+        )
         applyCameraState()
     }
 

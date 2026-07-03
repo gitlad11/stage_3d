@@ -24,7 +24,7 @@ If Stage 3D helps your project, please consider starring the repository.
 
 ## Preview
 
-![Stage 3D Android scene preview](doc/images/stage3d_scene.png)
+![Stage 3D scene preview](doc/images/stage3d_demo.gif)
 
 ## Native Backends
 
@@ -68,7 +68,7 @@ included `StageScene` component runtime, or your own scene layer.
 
 ## Project Status
 
-Stage 3D is an experimental alpha. Packaged native Filament rendering currently
+Stage 3D is an experimental beta. Packaged native Filament rendering currently
 targets Android. This repository also includes a working Windows C++ Filament
 demo backend, but it is not yet extracted as a reusable Windows Flutter plugin
 for downstream applications. Native Jolt physics currently targets Android;

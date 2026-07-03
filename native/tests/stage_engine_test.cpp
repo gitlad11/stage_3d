@@ -42,7 +42,7 @@ int main() {
   assert(orbit.distance == 0.1f);
 
   stage_engine_reset_camera(engine);
-  stage_engine_move_camera(engine, 250.0f, 0.0f);
+  stage_engine_move_camera(engine, 250.0f, 0.0f, 0.0f);
   orbit = stage_engine_get_orbit_camera(engine);
   assert(orbit.target_x == 1.0f);
 

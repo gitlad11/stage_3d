@@ -83,7 +83,13 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
-  SetChildContent(flutter_controller_->view()->GetNativeWindow());
+  HWND flutter_view_window = flutter_controller_->view()->GetNativeWindow();
+  SetWindowLongPtr(
+      flutter_view_window,
+      GWL_STYLE,
+      GetWindowLongPtr(flutter_view_window, GWL_STYLE) | WS_CLIPSIBLINGS |
+          WS_CLIPCHILDREN);
+  SetChildContent(flutter_view_window);
 
   filament_preview_enabled_ = IsFilamentPreviewEnabled();
   LogFilamentPreview(
@@ -129,6 +135,12 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  if (message == WM_TIMER && wparam == kFilamentFrameTimer &&
+      filament_renderer_) {
+    RenderFilamentFrame(true);
+    return 0;
+  }
+
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
@@ -142,13 +154,6 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   switch (message) {
     case WM_SIZE:
       LayoutFilamentPreviewWindow();
-      break;
-
-    case WM_TIMER:
-      if (wparam == kFilamentFrameTimer && filament_renderer_) {
-        RenderFilamentFrame(true);
-        return 0;
-      }
       break;
 
     case WM_FONTCHANGE:
@@ -188,6 +193,7 @@ void FlutterWindow::CreateFilamentPreviewWindow() {
   LogFilamentPreview("StageFilamentRenderer::Initialize succeeded.");
 
   RenderFilamentFrame(false);
+  SetFilamentAnimationLoopActive(true);
 }
 
 LRESULT CALLBACK FlutterWindow::FilamentPreviewWindowProc(
@@ -305,6 +311,11 @@ void FlutterWindow::RenderFilamentFrame(bool tick_animations) {
   if (filament_renderer_ == nullptr || IsIconic(GetHandle())) {
     return;
   }
+  if (filament_window_ != nullptr) {
+    SetWindowPos(
+        filament_window_, HWND_TOP, 0, 0, 0, 0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+  }
   if (tick_animations && renderer_bridge_) {
     renderer_bridge_->TickAnimations();
   }
@@ -312,16 +323,11 @@ void FlutterWindow::RenderFilamentFrame(bool tick_animations) {
 }
 
 void FlutterWindow::SetFilamentAnimationLoopActive(bool active) {
-  if (active) {
-    if (!filament_frame_timer_active_) {
-      SetTimer(GetHandle(), kFilamentFrameTimer, kFilamentFrameMs, nullptr);
-      filament_frame_timer_active_ = true;
-    }
+  (void)active;
+  if (!filament_preview_enabled_ || filament_frame_timer_active_) {
     return;
   }
-
-  if (filament_frame_timer_active_) {
-    KillTimer(GetHandle(), kFilamentFrameTimer);
-    filament_frame_timer_active_ = false;
-  }
+  SetTimer(GetHandle(), kFilamentFrameTimer, kFilamentFrameMs, nullptr);
+  filament_frame_timer_active_ = true;
+  LogFilamentPreview("Filament frame timer started.");
 }

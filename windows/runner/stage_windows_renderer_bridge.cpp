@@ -430,8 +430,11 @@ void StageWindowsRendererBridge::OrbitCamera(
   RequestRender();
 }
 
-void StageWindowsRendererBridge::MoveCamera(float delta_x, float delta_y) {
-  stage_engine_move_camera(engine_, delta_x, delta_y);
+void StageWindowsRendererBridge::MoveCamera(
+    float delta_x,
+    float delta_y,
+    float delta_z) {
+  stage_engine_move_camera(engine_, delta_x, delta_y, delta_z);
   ApplyCamera();
   RequestRender();
 }
@@ -459,6 +462,12 @@ void StageWindowsRendererBridge::HandleMethodCall(
 
   if (method == "resetView") {
     ResetCamera();
+    Success(std::move(result));
+    return;
+  }
+
+  if (method == "requestRender") {
+    RequestRender();
     Success(std::move(result));
     return;
   }
@@ -494,7 +503,8 @@ void StageWindowsRendererBridge::HandleMethodCall(
     }
     MoveCamera(
         FloatValue(*arguments, "deltaX"),
-        FloatValue(*arguments, "deltaY"));
+        FloatValue(*arguments, "deltaY"),
+        FloatValue(*arguments, "deltaZ", 0.0f));
     Success(std::move(result));
     return;
   }

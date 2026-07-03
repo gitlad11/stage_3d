@@ -234,16 +234,19 @@ void stage_engine_orbit_camera(
 void stage_engine_move_camera(
     StageEngine* engine,
     float delta_x,
-    float delta_y) {
+    float delta_y,
+    float delta_z) {
   if (engine == nullptr) {
     return;
   }
   const float right = delta_x * 0.004f;
   const float forward = delta_y * 0.004f;
+  const float up = delta_z * 0.004f;
   StageOrbitCamera camera = engine->orbit_camera;
   const float yaw_cos = std::cos(camera.yaw);
   const float yaw_sin = std::sin(camera.yaw);
   camera.target_x += yaw_cos * right + yaw_sin * forward;
+  camera.target_y += up;
   camera.target_z += -yaw_sin * right + yaw_cos * forward;
   stage_engine_set_orbit_camera(engine, camera);
 }

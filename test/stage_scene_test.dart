@@ -195,13 +195,20 @@ final class _StageRecordingBridge implements RenderSceneBridge {
   Future<void> resetView() async {}
 
   @override
+  Future<void> requestRender() async {}
+
+  @override
   Future<void> setCamera(StageCamera camera) async {}
 
   @override
   Future<void> orbitCamera(double deltaYaw, double deltaPitch) async {}
 
   @override
-  Future<void> moveCamera(double deltaX, double deltaY) async {}
+  Future<void> moveCamera(
+    double deltaX,
+    double deltaY, [
+    double deltaZ = 0,
+  ]) async {}
 
   @override
   Future<void> setEnvironment(RenderEnvironment environment) async {}

@@ -98,6 +98,11 @@ final class _RecordingBridge implements RenderSceneBridge {
   }
 
   @override
+  Future<void> requestRender() async {
+    events.add('requestRender');
+  }
+
+  @override
   Future<void> setCamera(StageCamera camera) async {
     events.add('setCamera');
   }
@@ -108,7 +113,11 @@ final class _RecordingBridge implements RenderSceneBridge {
   }
 
   @override
-  Future<void> moveCamera(double deltaX, double deltaY) async {
+  Future<void> moveCamera(
+    double deltaX,
+    double deltaY, [
+    double deltaZ = 0,
+  ]) async {
     events.add('moveCamera');
   }
 
