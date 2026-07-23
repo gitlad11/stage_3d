@@ -698,8 +698,11 @@ final class _PreviewPhysicsWorld implements PhysicsWorld, PhysicsQueries {
 
   @override
   void step(double deltaSeconds) {
-    for (final entry in _bodies.entries) {
-      final state = entry.value;
+    final dynamicBodies = [
+      for (final state in _bodies.values)
+        if (state.motionType == MotionType.dynamic) state,
+    ];
+    for (final state in dynamicBodies) {
       if (state.motionType != MotionType.dynamic) {
         continue;
       }
@@ -709,20 +712,206 @@ final class _PreviewPhysicsWorld implements PhysicsWorld, PhysicsQueries {
         state.linearVelocity.z,
       );
       final position = state.transform.position;
-      final nextY = math.max(0.65, position.y + velocity.y * deltaSeconds);
+      final floorY = _previewFloorY(state, position);
+      final nextY = math.max(floorY, position.y + velocity.y * deltaSeconds);
+      final hitFloor = nextY == floorY && velocity.y < 0;
+      final nextVelocity = hitFloor
+          ? Vector3(
+              velocity.x * 0.92,
+              velocity.y.abs() * state.body.settings.restitution,
+              velocity.z * 0.92,
+            )
+          : velocity;
+      final nextPosition = Vector3(
+        position.x + velocity.x * deltaSeconds,
+        nextY,
+        position.z + velocity.z * deltaSeconds,
+      );
+      final rollingAngularVelocity = hitFloor
+          ? _rollingAngularVelocity(nextVelocity, state.body.settings.shape)
+          : state.angularVelocity;
       state
-        ..linearVelocity = nextY == 0.65
-            ? Vector3(velocity.x, 0, velocity.z)
-            : velocity
+        ..linearVelocity = nextVelocity.y.abs() < 0.05 && hitFloor
+            ? Vector3(nextVelocity.x, 0, nextVelocity.z)
+            : nextVelocity
+        ..angularVelocity = rollingAngularVelocity
         ..transform = PhysicsTransform(
-          position: Vector3(
-            position.x + velocity.x * deltaSeconds,
-            nextY,
-            position.z + velocity.z * deltaSeconds,
+          position: nextPosition,
+          rotation: _integrateRotation(
+            state.transform.rotation,
+            rollingAngularVelocity,
+            deltaSeconds,
           ),
-          rotation: state.transform.rotation,
         );
     }
+    _resolvePreviewSphereCollisions(dynamicBodies);
+  }
+
+  void _resolvePreviewSphereCollisions(List<_PreviewBody> dynamicBodies) {
+    for (var i = 0; i < dynamicBodies.length; i++) {
+      final first = dynamicBodies[i];
+      final firstShape = first.body.settings.shape;
+      if (firstShape is! SphereShape) {
+        continue;
+      }
+      for (var j = i + 1; j < dynamicBodies.length; j++) {
+        final second = dynamicBodies[j];
+        final secondShape = second.body.settings.shape;
+        if (secondShape is! SphereShape) {
+          continue;
+        }
+        final a = first.transform.position;
+        final b = second.transform.position;
+        final delta = Vector3(b.x - a.x, b.y - a.y, b.z - a.z);
+        final minDistance = firstShape.radius + secondShape.radius;
+        final distanceSquared =
+            delta.x * delta.x + delta.y * delta.y + delta.z * delta.z;
+        if (distanceSquared >= minDistance * minDistance) {
+          continue;
+        }
+        final distance = math.sqrt(distanceSquared);
+        final normal = distance <= 0.0001
+            ? const Vector3(1, 0, 0)
+            : Vector3(
+                delta.x / distance,
+                delta.y / distance,
+                delta.z / distance,
+              );
+        final penetration = minDistance - distance;
+        first.transform = PhysicsTransform(
+          position: Vector3(
+            a.x - normal.x * penetration * 0.5,
+            a.y - normal.y * penetration * 0.5,
+            a.z - normal.z * penetration * 0.5,
+          ),
+          rotation: first.transform.rotation,
+        );
+        second.transform = PhysicsTransform(
+          position: Vector3(
+            b.x + normal.x * penetration * 0.5,
+            b.y + normal.y * penetration * 0.5,
+            b.z + normal.z * penetration * 0.5,
+          ),
+          rotation: second.transform.rotation,
+        );
+        final relativeVelocity = Vector3(
+          second.linearVelocity.x - first.linearVelocity.x,
+          second.linearVelocity.y - first.linearVelocity.y,
+          second.linearVelocity.z - first.linearVelocity.z,
+        );
+        final separatingSpeed =
+            relativeVelocity.x * normal.x +
+            relativeVelocity.y * normal.y +
+            relativeVelocity.z * normal.z;
+        if (separatingSpeed > 0) {
+          continue;
+        }
+        final restitution =
+            (first.body.settings.restitution +
+                second.body.settings.restitution) *
+            0.5;
+        final impulse = -(1 + restitution) * separatingSpeed * 0.5;
+        final impulseVector = Vector3(
+          normal.x * impulse,
+          normal.y * impulse,
+          normal.z * impulse,
+        );
+        first.linearVelocity = Vector3(
+          first.linearVelocity.x - impulseVector.x,
+          first.linearVelocity.y - impulseVector.y,
+          first.linearVelocity.z - impulseVector.z,
+        );
+        second.linearVelocity = Vector3(
+          second.linearVelocity.x + impulseVector.x,
+          second.linearVelocity.y + impulseVector.y,
+          second.linearVelocity.z + impulseVector.z,
+        );
+      }
+    }
+  }
+
+  Vector3 _rollingAngularVelocity(Vector3 velocity, ColliderShape shape) {
+    final radius = shape is SphereShape
+        ? shape.radius
+        : _previewVerticalExtent(shape);
+    if (radius <= 0.0001) {
+      return Vector3.zero;
+    }
+    return Vector3(velocity.z / radius, 0, -velocity.x / radius);
+  }
+
+  Quaternion _integrateRotation(
+    Quaternion rotation,
+    Vector3 angularVelocity,
+    double deltaSeconds,
+  ) {
+    final speed = math.sqrt(
+      angularVelocity.x * angularVelocity.x +
+          angularVelocity.y * angularVelocity.y +
+          angularVelocity.z * angularVelocity.z,
+    );
+    if (speed <= 0.0001) {
+      return rotation;
+    }
+    final halfAngle = speed * deltaSeconds * 0.5;
+    final sinHalf = math.sin(halfAngle);
+    final delta = Quaternion(
+      angularVelocity.x / speed * sinHalf,
+      angularVelocity.y / speed * sinHalf,
+      angularVelocity.z / speed * sinHalf,
+      math.cos(halfAngle),
+    );
+    return _normalizeQuaternion(_multiplyQuaternion(delta, rotation));
+  }
+
+  Quaternion _multiplyQuaternion(Quaternion a, Quaternion b) => Quaternion(
+    a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+    a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+    a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+    a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+  );
+
+  Quaternion _normalizeQuaternion(Quaternion value) {
+    final length = math.sqrt(
+      value.x * value.x +
+          value.y * value.y +
+          value.z * value.z +
+          value.w * value.w,
+    );
+    if (length <= 0.0001) {
+      return Quaternion.identity;
+    }
+    return Quaternion(
+      value.x / length,
+      value.y / length,
+      value.z / length,
+      value.w / length,
+    );
+  }
+
+  double _previewFloorY(_PreviewBody dynamicBody, Vector3 position) {
+    final radius = _previewVerticalExtent(dynamicBody.body.settings.shape);
+    var floorY = radius;
+    for (final state in _bodies.values) {
+      if (state.motionType != MotionType.static) {
+        continue;
+      }
+      final shape = state.body.settings.shape;
+      if (shape is! BoxShape) {
+        continue;
+      }
+      final floorPosition = state.transform.position;
+      final withinX =
+          position.x >= floorPosition.x - shape.halfWidth - radius &&
+          position.x <= floorPosition.x + shape.halfWidth + radius;
+      final withinZ =
+          position.z >= floorPosition.z - shape.halfDepth - radius &&
+          position.z <= floorPosition.z + shape.halfDepth + radius;
+      if (withinX && withinZ) {
+        floorY = math.max(floorY, floorPosition.y + shape.halfHeight + radius);
+      }
+    }
+    return floorY;
   }
 
   @override
@@ -793,6 +982,19 @@ final class _PreviewPhysicsWorld implements PhysicsWorld, PhysicsQueries {
             position.z * position.z,
       );
       return math.max(radius, childDistance + _previewRadius(child.shape));
+    }),
+  };
+
+  double _previewVerticalExtent(ColliderShape shape) => switch (shape) {
+    BoxShape() => shape.halfHeight,
+    CapsuleShape() => shape.halfHeight + shape.radius,
+    SphereShape() => shape.radius,
+    CylinderShape() => shape.halfHeight,
+    CompoundShape() => shape.children.fold(0, (height, child) {
+      return math.max(
+        height,
+        child.position.y.abs() + _previewVerticalExtent(child.shape),
+      );
     }),
   };
 }

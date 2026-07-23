@@ -36,17 +36,23 @@ flutter:
   assets:
     - assets/models/Fox.glb
     - assets/models/caravane_real.glb
+    - assets/models/pool_ball.glb
+    - assets/models/pool_ball_license.txt
     - assets/models/TreePack.obj
     - assets/models/mighty_oak_trees.glb
     - assets/models/ferns/Ferns.glb
     - assets/textures/grass_pbr_atlas.png
+    - assets/textures/fabric/Fabric018_2K-Color.png
+    - assets/textures/grass/travushka_0.png
     - assets/textures/ferns/Ferns_Texture_0.png
     - assets/textures/ferns/Temperate_Forest_Fern_Cluster_Color_2.png
     - assets/textures/ferns/internal_ground_ao_texture.jpeg
     - assets/material_sources/grass_wind.mat
+    - assets/material_sources/grass_card_wind.mat
     - assets/material_sources/grass_wind.shader
     - assets/material_sources/water.shader
     - assets/materials/grass_wind.filamat
+    - assets/materials/grass_card_wind.filamat
     - assets/materials/water.filamat
 
   uses-material-design: true

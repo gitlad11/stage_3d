@@ -1,0 +1,75 @@
+material {
+    name : "Grass Card Wind",
+    shadingModel : lit,
+    doubleSided : true,
+    blending : masked,
+    maskThreshold : 0.35,
+    requires : [
+        uv0
+    ],
+    parameters : [
+        {
+            type : sampler2d,
+            name : albedo
+        },
+        {
+            type : float4,
+            name : tint
+        },
+        {
+            type : float,
+            name : roughness
+        },
+        {
+            type : float,
+            name : metallic
+        },
+        {
+            type : float,
+            name : reflectance
+        },
+        {
+            type : float,
+            name : windStrength
+        },
+        {
+            type : float,
+            name : windScale
+        },
+        {
+            type : float,
+            name : anchorY
+        },
+        {
+            type : float,
+            name : windHeight
+        }
+    ]
+}
+
+vertex {
+    void materialVertex(inout MaterialVertexInputs material) {
+        float bladeMask = clamp(
+            (material.worldPosition.y - materialParams.anchorY) /
+            max(materialParams.windHeight, 0.001),
+            0.0,
+            1.0
+        );
+        float wind = sin(
+            (material.worldPosition.x + material.worldPosition.z) *
+            materialParams.windScale + getUserTime().x * 6.28318
+        );
+        material.worldPosition.x += wind * materialParams.windStrength * bladeMask;
+    }
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        vec4 base = texture(materialParams_albedo, getUV0()) * materialParams.tint;
+        material.baseColor = base;
+        material.roughness = materialParams.roughness;
+        material.metallic = materialParams.metallic;
+        material.reflectance = materialParams.reflectance;
+    }
+}

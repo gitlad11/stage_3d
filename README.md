@@ -387,9 +387,14 @@ The current public shape API supports `BoxShape`, `CapsuleShape`,
 - Filament Platform View:
   [`android/src/main/kotlin/com/stage3d/stage_3d/FilamentPlatformView.kt`](android/src/main/kotlin/com/stage3d/stage_3d/FilamentPlatformView.kt)
 
-## Test Model
+## Demo Assets
 
 The animated `Fox.glb` asset comes from the
 [Khronos glTF Sample Models repository](https://github.com/KhronosGroup/glTF-Sample-Models/tree/master/2.0/Fox).
 The mesh is CC0. Rigging and animation are licensed under CC-BY 4.0 by
 [@tomkranis](https://sketchfab.com/models/371dea88d7e04a76af5763f2a36866bc).
+
+The `pool_ball.glb` demo asset is based on
+["Pool Ball"](https://sketchfab.com/3d-models/pool-ball-405f6ed74fa94dbd9a06629a334585db)
+by [Blender3D](https://sketchfab.com/Blender3D), licensed under
+[CC-BY-4.0](http://creativecommons.org/licenses/by/4.0/).
