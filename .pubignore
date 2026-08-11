@@ -1,6 +1,8 @@
 .dart_tool/
 .idea/
 /build/
+appartement.zip
+output/
 stage3d_treepack.png
 docs/
 *.iml
@@ -9,6 +11,8 @@ android/.cxx/
 android/build/
 android/.kotlin/
 android/app/
+assets/models/appartement.glb
+assets/textures/appartement/
 ios/
 linux/
 macos/

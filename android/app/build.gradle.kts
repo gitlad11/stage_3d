@@ -50,6 +50,24 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = false
+            isShrinkResources = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+        }
+    }
+
+    sourceSets {
+        getByName("debug") {
+            jniLibs.srcDir(layout.buildDirectory.file("intermediates/flutter/debug/jniLibs").get().asFile)
+        }
+        getByName("profile") {
+            jniLibs.srcDir(layout.buildDirectory.file("intermediates/flutter/profile/jniLibs").get().asFile)
+        }
+        getByName("release") {
+            jniLibs.srcDir(layout.buildDirectory.file("intermediates/flutter/release/jniLibs").get().asFile)
         }
     }
 }
@@ -126,6 +144,11 @@ val compileFilamentMaterials by tasks.registering {
 tasks.configureEach {
     if (name.startsWith("merge") && name.endsWith("Assets")) {
         dependsOn(compileFilamentMaterials)
+    }
+    when (name) {
+        "mergeDebugNativeLibs" -> dependsOn("compileFlutterBuildDebug")
+        "mergeProfileNativeLibs" -> dependsOn("compileFlutterBuildProfile")
+        "mergeReleaseNativeLibs" -> dependsOn("compileFlutterBuildRelease")
     }
 }
 

@@ -78,6 +78,41 @@ final class OrbitCamera extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Moves the target in the direction the camera is currently looking.
+  ///
+  /// [right] strafes perpendicular to the view direction (horizontal only),
+  /// [forward] moves along the view direction (including vertical pitch),
+  /// and [up] moves along world Y.
+  void moveInViewDirection({
+    required double right,
+    required double forward,
+    double up = 0,
+  }) {
+    if (right == 0 && forward == 0 && up == 0) {
+      return;
+    }
+    final pitchCos = math.cos(_pitch);
+    final pitchSin = math.sin(_pitch);
+    final yawCos = math.cos(_yaw);
+    final yawSin = math.sin(_yaw);
+
+    // View direction takes pitch into account for true 3D fly movement.
+    final viewForward = Vector3(
+      yawSin * pitchCos,
+      pitchSin,
+      yawCos * pitchCos,
+    );
+    // Right stays horizontal (perpendicular to yaw).
+    final viewRight = Vector3(yawCos, 0, -yawSin);
+
+    _target = Vector3(
+      _target.x + viewRight.x * right + viewForward.x * forward,
+      _target.y + viewForward.y * forward + up,
+      _target.z + viewRight.z * right + viewForward.z * forward,
+    );
+    notifyListeners();
+  }
+
   void reset() {
     _yaw = _defaultYaw;
     _pitch = _defaultPitch;

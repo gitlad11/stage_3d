@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0-beta.2
+
+- Fixed Android release APK packaging for the demo app by preserving Flutter's
+  generated Dart AOT `libapp.so` in native library merges.
+- Reduced Android texture upload memory usage by downscaling large mesh texture
+  assets and avoiding repeated bitmap tiling for texture repeats.
+- Added runtime mesh creation helpers on `FilamentViewportController` and
+  improved orbit camera fly movement for interactive 3D scenes.
+- Updated the grass card wind material so anchored blades bend from the top.
+
 ## 0.1.0-beta.1
 
 - Fixed package ignore rules so root build output is excluded without excluding

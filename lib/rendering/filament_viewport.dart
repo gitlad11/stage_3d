@@ -22,6 +22,8 @@ final class FilamentViewportController {
   OrbitCamera? _fallbackCamera;
   StageCamera _camera = StageCamera.defaultView;
 
+  bool get isAttached => _bridge != null;
+
   void attach(MethodChannel channel) {
     attachBridge(MethodChannelRenderSceneBridge(channel));
   }
@@ -55,6 +57,10 @@ final class FilamentViewportController {
     return _bridge?.setCamera(_camera) ?? Future<void>.value();
   }
 
+  void requestRender() {
+    _bridge?.requestRender();
+  }
+
   void resetView() {
     setCamera(StageCamera.defaultView);
     _bridge?.resetView();
@@ -67,6 +73,14 @@ final class FilamentViewportController {
 
   void moveCamera(double deltaX, double deltaY, [double deltaZ = 0]) {
     _bridge?.moveCamera(deltaX, deltaY, deltaZ);
+  }
+
+  Future<void> createTexturedMesh(int meshId, TexturedMeshPrototype mesh) {
+    return _bridge?.createTexturedMesh(meshId, mesh) ?? Future<void>.value();
+  }
+
+  Future<void> destroyTexturedMesh(int meshId) {
+    return _bridge?.destroyTexturedMesh(meshId) ?? Future<void>.value();
   }
 }
 

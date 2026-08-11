@@ -3,9 +3,6 @@ package com.stage3d.stage_3d
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.Rect
 import android.view.Choreographer
 import android.view.TextureView
 import com.google.android.filament.EntityManager
@@ -1040,41 +1037,34 @@ class FilamentPlatformView(
         val cropTop = top.toInt().coerceIn(0, source.height - 1)
         val cropRight = right.toInt().coerceIn(cropLeft + 1, source.width)
         val cropBottom = bottom.toInt().coerceIn(cropTop + 1, source.height)
-        val tile = Bitmap.createBitmap(
+        val cropped = Bitmap.createBitmap(
             source,
             cropLeft,
             cropTop,
             cropRight - cropLeft,
             cropBottom - cropTop,
         )
+        val tile = cropped.copy(Bitmap.Config.ARGB_8888, false)
+        if (cropped != source) {
+            cropped.recycle()
+        }
         source.recycle()
 
-        val repeatU = max(1, ceil(number(texture["repeatU"]).toDouble()).toInt())
-        val repeatV = max(1, ceil(number(texture["repeatV"]).toDouble()).toInt())
-        val bitmap = Bitmap.createBitmap(
-            tile.width * repeatU,
-            tile.height * repeatV,
-            Bitmap.Config.ARGB_8888,
-        )
-        val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.FILTER_BITMAP_FLAG)
-        for (y in 0 until repeatV) {
-            for (x in 0 until repeatU) {
-                canvas.drawBitmap(
-                    tile,
-                    null,
-                    Rect(
-                        x * tile.width,
-                        y * tile.height,
-                        (x + 1) * tile.width,
-                        (y + 1) * tile.height,
-                    ),
-                    paint,
-                )
-            }
+        return encodePng(downscaleTextureBitmap(tile))
+    }
+
+    private fun downscaleTextureBitmap(bitmap: Bitmap): Bitmap {
+        val maxTextureSide = 1024
+        val largestSide = max(bitmap.width, bitmap.height)
+        if (largestSide <= maxTextureSide) {
+            return bitmap
         }
-        tile.recycle()
-        return encodePng(bitmap)
+        val scale = maxTextureSide.toFloat() / largestSide.toFloat()
+        val width = max(1, (bitmap.width * scale).toInt())
+        val height = max(1, (bitmap.height * scale).toInt())
+        val scaled = Bitmap.createScaledBitmap(bitmap, width, height, true)
+        bitmap.recycle()
+        return scaled
     }
 
     private fun createCheckerTexturePng(texture: Map<String, Any>): ByteArray {

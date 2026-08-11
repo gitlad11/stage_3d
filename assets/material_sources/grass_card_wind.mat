@@ -55,11 +55,12 @@ vertex {
             0.0,
             1.0
         );
-        float wind = sin(
-            (material.worldPosition.x + material.worldPosition.z) *
-            materialParams.windScale + getUserTime().x * 6.28318
-        );
-        material.worldPosition.x += wind * materialParams.windStrength * bladeMask;
+        float phase = (material.worldPosition.x * 0.73 + material.worldPosition.z * 1.31) *
+            materialParams.windScale + getUserTime().x * 4.4;
+        float gust = sin(phase) * 0.72 + sin(phase * 1.7 + 1.2) * 0.28;
+        float bend = materialParams.windStrength * bladeMask * bladeMask;
+        material.worldPosition.x += gust * bend;
+        material.worldPosition.z += cos(phase * 0.83) * bend * 0.32;
     }
 }
 
